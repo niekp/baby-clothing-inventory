@@ -60,8 +60,7 @@
   .shell {
     display: flex;
     flex-direction: column; /* main boven, nav onderaan (= DOM-volgorde) */
-    height: 100vh;
-    height: 100dvh; /* vaste hoogte: main scrolt intern, nav blijft onderaan staan */
+    height: 100%; /* = body/html (stabiel in iOS-standalone PWA); main scrolt intern */
   }
   main {
     flex: 1;
@@ -73,8 +72,7 @@
   @media (min-width: 768px) {
     .shell {
       flex-direction: row;
-      height: 100vh;
-      height: 100dvh;
+      height: 100%;
     }
     main {
       order: 2; /* nav (order 0) links, content rechts; DOM blijft content-first */

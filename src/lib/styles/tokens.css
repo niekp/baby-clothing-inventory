@@ -46,11 +46,15 @@ html,
 body {
   margin: 0;
   padding: 0;
+  height: 100%; /* stabiele hoogte-keten voor de app-shell (i.p.v. dvh; iOS-PWA-bug na reload) */
   background: var(--bg);
   color: var(--text);
   font-family: var(--font);
   font-size: var(--fs-base);
   -webkit-font-smoothing: antialiased;
+}
+body {
+  overflow: hidden; /* app-shell: alleen <main> scrollt, body niet → bottom-nav blijft staan */
 }
 
 button {
