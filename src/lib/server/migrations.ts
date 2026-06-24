@@ -43,6 +43,17 @@ export const MIGRATIONS: Migration[] = [
          WHERE current_size IS NOT NULL AND substr(current_size, 1, 1) <> '['`
       ).run();
     }
+  },
+  {
+    // item.embedding: CLIP-vector (BLOB) voor dubbel-detectie. Guarded ALTER zodat
+    // fresh DB's (baseline zonder kolom) en bestaande DB's allebei matchen.
+    name: 'add-item-embedding',
+    up: (db) => {
+      const cols = db.prepare('PRAGMA table_info(item)').all() as { name: string }[];
+      if (!cols.some((c) => c.name === 'embedding')) {
+        db.prepare('ALTER TABLE item ADD COLUMN embedding BLOB').run();
+      }
+    }
   }
 ];
 

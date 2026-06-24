@@ -12,8 +12,10 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # modellen in het image bakken (geen runtime-download): isnet (eager) + birefnet (recutout)
+# + CLIP ViT-B/32 vision-encoder voor item-embeddings (dubbel-detectie)
 RUN mkdir -p /models \
     && python -c "from rembg import new_session; new_session('isnet-general-use'); new_session('birefnet-general')" \
+    && python -c "import urllib.request; urllib.request.urlretrieve('https://huggingface.co/Qdrant/clip-ViT-B-32-vision/resolve/main/model.onnx', '/models/clip-vision.onnx')" \
     && chmod -R a+rX /models
 
 COPY web.py .

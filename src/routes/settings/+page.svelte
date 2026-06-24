@@ -97,6 +97,15 @@
 </section>
 
 <section>
+  <h2>Mogelijke dubbelen</h2>
+  <p class="muted">
+    Vind kledingstukken die je mogelijk twee keer hebt gefotografeerd, op beeldgelijkenis.
+    Jij bevestigt elk paar.
+  </p>
+  <Button variant="ghost" href="/duplicates"><Icon name="shapes" size={16} /> Dubbelen bekijken</Button>
+</section>
+
+<section>
   <h2>Maten</h2>
   <p class="muted">Vaste matenlijst (EU): {SIZES.join(', ')}.</p>
 </section>

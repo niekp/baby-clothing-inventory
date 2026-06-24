@@ -58,6 +58,12 @@ CREATE TABLE IF NOT EXISTS outfit_item (
   z_index INTEGER NOT NULL DEFAULT 0
 );
 
+CREATE TABLE IF NOT EXISTS dismissed_duplicate (
+  a INTEGER NOT NULL REFERENCES item(id) ON DELETE CASCADE,
+  b INTEGER NOT NULL REFERENCES item(id) ON DELETE CASCADE,
+  PRIMARY KEY (a, b)
+);
+
 CREATE INDEX IF NOT EXISTS idx_item_claim ON item(ai_status, created_at);
 CREATE INDEX IF NOT EXISTS idx_item_created ON item(created_at);
 CREATE INDEX IF NOT EXISTS idx_outfit_item_outfit ON outfit_item(outfit_id);
@@ -349,4 +355,67 @@ export function updateChild(
 
 export function deleteChild(id: number): boolean {
   return getDb().prepare('DELETE FROM child WHERE id = ?').run(id).changes > 0;
+}
+
+// --- embeddings (dubbel-detectie) ---
+
+export interface EmbeddingRow {
+  id: number;
+  size: string;
+  type: string | null;
+  embedding: Float32Array;
+}
+
+// SQLite-BLOB → Float32Array (dichte kopie: byteOffset is niet gegarandeerd 4-aligned).
+function bufToFloat32(buf: Buffer): Float32Array {
+  const copy = Uint8Array.from(buf);
+  return new Float32Array(copy.buffer, 0, Math.floor(copy.byteLength / 4));
+}
+
+export function setEmbedding(id: number, vec: Float32Array): void {
+  const blob = Buffer.from(vec.buffer, vec.byteOffset, vec.byteLength);
+  getDb().prepare('UPDATE item SET embedding = ? WHERE id = ?').run(blob, id);
+}
+
+export function listEmbeddings(): EmbeddingRow[] {
+  const rows = getDb()
+    .prepare('SELECT id, size, type, embedding FROM item WHERE embedding IS NOT NULL')
+    .all() as { id: number; size: string; type: string | null; embedding: Buffer }[];
+  return rows.map((r) => ({ id: r.id, size: r.size, type: r.type, embedding: bufToFloat32(r.embedding) }));
+}
+
+// Items mét cutout maar zonder embedding (backfill-kandidaten).
+export function itemsMissingEmbedding(): number[] {
+  return (
+    getDb()
+      .prepare('SELECT id FROM item WHERE embedding IS NULL AND cutout_path IS NOT NULL ORDER BY id')
+      .all() as { id: number }[]
+  ).map((r) => r.id);
+}
+
+export function countMissingEmbedding(): number {
+  return (
+    getDb()
+      .prepare('SELECT COUNT(*) AS n FROM item WHERE embedding IS NULL AND cutout_path IS NOT NULL')
+      .get() as { n: number }
+  ).n;
+}
+
+// --- afgewezen dubbel-paren (canoniek a<b) ---
+
+function pairKey(a: number, b: number): [number, number] {
+  return a < b ? [a, b] : [b, a];
+}
+
+export function dismissDuplicate(a: number, b: number): void {
+  const [x, y] = pairKey(a, b);
+  getDb().prepare('INSERT OR IGNORE INTO dismissed_duplicate (a, b) VALUES (?, ?)').run(x, y);
+}
+
+export function listDismissedPairs(): Set<string> {
+  const rows = getDb().prepare('SELECT a, b FROM dismissed_duplicate').all() as {
+    a: number;
+    b: number;
+  }[];
+  return new Set(rows.map((r) => `${r.a}:${r.b}`));
 }

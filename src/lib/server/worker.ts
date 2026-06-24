@@ -3,13 +3,15 @@ import {
   failTagging,
   finishTagging,
   getItem,
+  itemsMissingEmbedding,
+  setEmbedding,
   sweepStuckWorking,
   updateItem
 } from './db';
 import sharp from 'sharp';
 import { readPhoto, saveCutout } from './photos';
 import { tagImage } from './ai';
-import { cutout } from './rembg';
+import { cutout, embed } from './rembg';
 
 const IDLE_MS = Number(process.env.WORKER_IDLE_MS ?? 3000);
 
@@ -46,6 +48,8 @@ export async function processOne(): Promise<boolean> {
       .flatten({ background: '#ffffff' })
       .jpeg({ quality: 90 })
       .toBuffer();
+    // embedding op dezelfde schone foto (dubbel-detectie); niet-fataal voor tagging
+    await embedItem(item.id, jpeg);
     const suggestions = await tagImage(jpeg.toString('base64'));
     if (!finishTagging(item.id, JSON.stringify(suggestions))) {
       console.info(`[worker] item ${item.id} ondertussen handmatig afgehandeld — AI-resultaat genegeerd`);
@@ -83,6 +87,49 @@ export async function generateCutout(
     }
     return null;
   }
+}
+
+// Berekent + bewaart de CLIP-embedding van een item. Niet-fataal: een fout hier
+// mag de tagging niet breken (vandaar eigen try/catch i.p.v. doorgooien).
+export async function embedItem(id: number, jpeg: Buffer): Promise<boolean> {
+  try {
+    const vec = await embed(new Uint8Array(jpeg));
+    if (!getItem(id)) return false; // item ondertussen verwijderd
+    setEmbedding(id, vec);
+    return true;
+  } catch (e) {
+    console.error(`[worker] item ${id} embedding mislukt:`, e);
+    return false;
+  }
+}
+
+// Berekent embeddings voor bestaande items mét cutout zonder embedding (eenmalig
+// inhalen). Serieel; de kast is klein. Retourneert tellingen.
+export async function backfillEmbeddings(): Promise<{ done: number; failed: number }> {
+  let done = 0;
+  let failed = 0;
+  for (const id of itemsMissingEmbedding()) {
+    const item = getItem(id);
+    if (!item?.cutout_path) {
+      failed++;
+      continue;
+    }
+    const file = await readPhoto('cutout', item.cutout_path);
+    if (!file) {
+      failed++;
+      continue;
+    }
+    try {
+      const jpeg = await sharp(Buffer.from(file.data))
+        .flatten({ background: '#ffffff' })
+        .jpeg({ quality: 90 })
+        .toBuffer();
+      (await embedItem(id, jpeg)) ? done++ : failed++;
+    } catch {
+      failed++;
+    }
+  }
+  return { done, failed };
 }
 
 async function loop(): Promise<void> {

@@ -4,12 +4,16 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 
-// AI-tagging gemockt zodat de worker zonder netwerk testbaar is
+// AI-tagging + sidecar gemockt zodat de worker zonder netwerk testbaar is
 vi.mock('./ai', () => ({ tagImage: vi.fn() }));
+vi.mock('./rembg', () => ({
+  cutout: vi.fn().mockRejectedValue(new Error('no rembg')), // cutout faalt zacht (zoals zonder sidecar)
+  embed: vi.fn().mockResolvedValue(new Float32Array([1, 0, 0]))
+}));
 import { tagImage } from './ai';
 import { createDb, createItem, getItem, setDbForTesting, updateItem, type DB } from './db';
-import { savePhoto } from './photos';
-import { processOne } from './worker';
+import { savePhoto, saveCutout } from './photos';
+import { backfillEmbeddings, processOne } from './worker';
 
 let tmp: string;
 let db: DB;
@@ -72,5 +76,22 @@ describe('processOne', () => {
     // a verwerkt, b nog in de wachtrij
     expect(getItem(a)!.ai_status).toBe('suggested');
     expect(getItem(b)!.ai_status).toBe('processing');
+  });
+});
+
+describe('backfillEmbeddings', () => {
+  it('embeddt items met cutout zonder embedding, telt done/failed', async () => {
+    const withCut = createItem({ size: '68' });
+    const png = await sharp({ create: { width: 40, height: 40, channels: 4, background: { r: 0, g: 170, b: 0, alpha: 1 } } })
+      .png()
+      .toBuffer();
+    const name = await saveCutout(withCut.id, png);
+    updateItem(withCut.id, { cutout_path: name, cutout_status: 'done' });
+    createItem({ size: '74' }); // geen cutout → geen backfill-kandidaat
+
+    const res = await backfillEmbeddings();
+    expect(res.done).toBe(1);
+    expect(res.failed).toBe(0);
+    expect(getItem(withCut.id)!.embedding).toBeTruthy();
   });
 });

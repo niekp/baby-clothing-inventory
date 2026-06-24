@@ -26,3 +26,27 @@ export async function cutout(
     clearTimeout(timer);
   }
 }
+
+// Vraagt de CLIP-embedding (L2-genormaliseerd) van een afbeelding op. Gooit bij fout/timeout.
+export async function embed(imageBytes: Uint8Array<ArrayBuffer>): Promise<Float32Array> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 30_000);
+  try {
+    const res = await fetch(`${REMBG_URL}/embed`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/octet-stream' },
+      body: imageBytes,
+      signal: controller.signal
+    });
+    if (!res.ok) throw new Error(`embed HTTP ${res.status}`);
+    const data = (await res.json()) as { embedding: number[] };
+    // CLIP ViT-B/32 → 512-dim. Wijkt dat af, dan klopt het model-contract niet:
+    // hard falen i.p.v. een verkeerd-gevormde vector in de DB schrijven.
+    if (!Array.isArray(data.embedding) || data.embedding.length !== 512) {
+      throw new Error(`embed: onverwachte vector-lengte ${data.embedding?.length}`);
+    }
+    return Float32Array.from(data.embedding);
+  } finally {
+    clearTimeout(timer);
+  }
+}

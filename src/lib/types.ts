@@ -25,6 +25,7 @@ export interface Item {
   cutout_path: string | null;
   cutout_status: CutoutStatus;
   created_at: string;
+  embedding?: Buffer | null; // CLIP-vector (BLOB); server-only, niet naar de client
 }
 
 export interface Child {

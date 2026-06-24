@@ -51,8 +51,11 @@ export function serializeItem(item: Item): ItemDTO {
       suggestions = null;
     }
   }
+  // embedding (BLOB) niet meesturen: groot en nutteloos voor de client
+  const { embedding, ...rest } = item;
+  void embedding;
   return {
-    ...item,
+    ...rest,
     display_url: photoUrl('disp', item.photo_display),
     cutout_url: photoUrl('cutout', item.cutout_path),
     orig_download_url: item.photo_orig ? `/api/items/${item.id}/original` : null,
