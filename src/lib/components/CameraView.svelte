@@ -52,7 +52,8 @@
     stopStream();
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: facing, width: { ideal: 1920 }, height: { ideal: 1080 } },
+        // 4K-ideaal: de camera levert 't hoogste dat 'ie kan (≤4K) → scherper frame.
+        video: { facingMode: facing, width: { ideal: 3840 }, height: { ideal: 2160 } },
         audio: false
       });
     } catch (e) {

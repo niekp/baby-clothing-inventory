@@ -1,8 +1,10 @@
 // Client-side foto-helpers voor de scan-flow. Geen server-imports.
 import type { ItemDTO } from '$lib/server/serialize';
 
-const MAX_DIM = 1600;
-const QUALITY = 0.85;
+// Origineel: groot genoeg om te hergebruiken (bv. Vinted), niet absurd. De
+// display-variant (klein webp) wordt server-side apart gemaakt.
+const MAX_DIM = 3000;
+const QUALITY = 0.92;
 
 // Tekent het huidige videoframe op een (geschaalde) canvas. Gooit als er nog geen frame is.
 export function canvasFromVideo(video: HTMLVideoElement, maxDim = MAX_DIM): HTMLCanvasElement {
