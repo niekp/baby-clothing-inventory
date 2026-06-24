@@ -29,7 +29,6 @@
     {/if}
     {#if marker}<span class="marker" title={`Huidige maat van ${marker.join(', ')}`}>{marker.join(', ')}</span>{/if}
   </div>
-  {#if item.type}<span class="type">{item.type}</span>{/if}
 </a>
 
 <style>
@@ -124,10 +123,5 @@
   }
   .status.fail {
     background: var(--danger);
-  }
-  .type {
-    font-size: var(--fs-sm);
-    color: var(--text-muted);
-    padding-left: 2px;
   }
 </style>
