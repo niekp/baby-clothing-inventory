@@ -2,7 +2,7 @@
   import { onMount } from 'svelte';
   import CameraView, { type CamState } from '$lib/components/CameraView.svelte';
   import CaptureStrip, { type Capture } from '$lib/components/CaptureStrip.svelte';
-  import SizeChips from '$lib/components/SizeChips.svelte';
+  import SizeSlider from '$lib/components/SizeSlider.svelte';
   import BottomSheet from '$lib/components/BottomSheet.svelte';
   import Button from '$lib/components/Button.svelte';
   import Icon from '$lib/components/Icon.svelte';
@@ -22,7 +22,6 @@
   let captures = $state<Capture[]>([]);
   let keySeq = 0;
 
-  let sizeSheetOpen = $state(false);
   let activeKey = $state<number | null>(null);
   let active = $derived(captures.find((c) => c.key === activeKey) ?? null);
   let shutterBusy = false;
@@ -51,7 +50,6 @@
   function pickSize(s: string) {
     size = s;
     localStorage.setItem(SIZE_KEY, s); // steady: blijft staan tot je bewust wisselt
-    sizeSheetOpen = false;
   }
 
   // Achtergrond-upload; UI wacht hier nooit op.
@@ -173,11 +171,8 @@
     <CameraView bind:this={cam} onstate={(s) => (camState = s)} />
   {/if}
 
-  <!-- topbar: steady maat-indicator + sluiten -->
+  <!-- topbar: sluiten -->
   <div class="topbar">
-    <button class="size-pill" onclick={() => (sizeSheetOpen = true)} aria-label="Maat wisselen">
-      Maat {size} <Icon name="chevron-down" size={16} />
-    </button>
     <a class="close" href="/" aria-label="Sluiten"><Icon name="x" size={22} /></a>
   </div>
 
@@ -197,8 +192,11 @@
     </div>
   {/if}
 
-  <!-- onderbalk: torch · shutter · flip + strip -->
+  <!-- onderbalk: maat-slider + torch · shutter · flip + strip -->
   <div class="bottombar">
+    <div class="size-control">
+      <SizeSlider current={size} onpick={pickSize} />
+    </div>
     <div class="controls">
       <button
         class="ctrl"
@@ -227,18 +225,13 @@
   {/if}
 </div>
 
-<!-- maat-sheet: alleen bij bewust wisselen -->
-<BottomSheet bind:open={sizeSheetOpen} title="Kies maat">
-  <SizeChips current={size} onpick={pickSize} />
-</BottomSheet>
-
 <!-- thumbnail-editor -->
 <BottomSheet open={active !== null} onclose={closeThumb} title="Item aanpassen">
   {#if active}
     <img class="preview" src={active.url} alt="" />
     {#if active.status === 'ok'}
       <p class="field-label">Maat wijzigen</p>
-      <SizeChips current={active.size} onpick={changeActiveSize} />
+      <SizeSlider current={active.size} onpick={changeActiveSize} />
       <div class="editor-action"><Button variant="danger" block onclick={deleteActive}>Verwijderen</Button></div>
     {:else if active.status === 'pending'}
       <p>Bezig met opslaan…</p>
@@ -268,17 +261,8 @@
     z-index: 10;
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: flex-end;
     padding: calc(env(safe-area-inset-top) + var(--space-3)) var(--space-4) var(--space-3);
-  }
-  .size-pill {
-    background: rgba(0, 0, 0, 0.55);
-    color: #fff;
-    border: none;
-    border-radius: 999px;
-    padding: var(--space-2) var(--space-4);
-    font-size: var(--fs-lg);
-    font-weight: 600;
   }
   .close {
     width: 40px;
@@ -302,6 +286,11 @@
     padding: var(--space-4);
     padding-bottom: calc(env(safe-area-inset-bottom) + var(--space-4));
     background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent);
+  }
+  .size-control {
+    background: rgba(0, 0, 0, 0.45);
+    border-radius: var(--radius);
+    padding: var(--space-2) var(--space-4) var(--space-3);
   }
   .controls {
     display: flex;
