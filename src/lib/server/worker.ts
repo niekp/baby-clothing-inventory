@@ -32,11 +32,20 @@ export async function processOne(): Promise<boolean> {
     return true;
   }
 
-  // 1) tagging — schrijf het resultaat alleen weg als 't item nog 'working' is
-  // (de gebruiker kan 't ondertussen handmatig hebben afgehandeld → niet overschrijven).
+  // 1) cutout eerst (~2s): een vrijstaand kledingstuk zonder achtergrond-ruis is
+  // veel duidelijker voor de AI dan een portretfoto met kamer eromheen.
+  const cut = await generateCutout(item.id, file.data);
+
+  // 2) tagging op de cutout (op wit geflatten); val terug op de displayfoto als
+  //    de cutout faalde. Resultaat alleen wegschrijven als 't item nog 'working'
+  //    is (de gebruiker kan 't ondertussen handmatig hebben afgehandeld).
   try {
-    // ollama's vision-decoder (llama.cpp mtmd) leest geen WebP → forceer JPEG
-    const jpeg = await sharp(Buffer.from(file.data)).jpeg({ quality: 90 }).toBuffer();
+    // ollama's vision-decoder (llama.cpp mtmd) leest geen WebP en geen alpha →
+    // flatten op wit + JPEG. Cutout op wit = schone "product"-foto.
+    const jpeg = await sharp(Buffer.from(cut ?? file.data))
+      .flatten({ background: '#ffffff' })
+      .jpeg({ quality: 90 })
+      .toBuffer();
     const suggestions = await tagImage(jpeg.toString('base64'));
     if (!finishTagging(item.id, JSON.stringify(suggestions))) {
       console.info(`[worker] item ${item.id} ondertussen handmatig afgehandeld — AI-resultaat genegeerd`);
@@ -50,20 +59,21 @@ export async function processOne(): Promise<boolean> {
       console.error(`[worker] item ${item.id} kon niet op failed gezet worden:`, e2);
     }
   }
-
-  // 2) eager cutout in dezelfde pass (onafhankelijk van tagging). ~2s valt in
-  // het niet bij de ~2min tagging; niet-fataal als de sidecar faalt. Sla over als
-  // 't item ondertussen verwijderd is (geen wees-cutout schrijven).
-  if (getItem(item.id)) await generateCutout(item.id, file.data);
   return true;
 }
 
-// Maakt de vrijstaande cutout via de rembg-sidecar. Niet-fataal.
-export async function generateCutout(id: number, displayBytes: Uint8Array<ArrayBuffer>): Promise<void> {
+// Maakt de vrijstaande cutout via de rembg-sidecar. Niet-fataal. Retourneert de
+// PNG-bytes (voor hergebruik bij tagging) of null bij fout/verwijderd item.
+export async function generateCutout(
+  id: number,
+  displayBytes: Uint8Array<ArrayBuffer>
+): Promise<Uint8Array | null> {
   try {
     const png = await cutout(displayBytes);
+    if (!getItem(id)) return null; // item ondertussen verwijderd → geen wees-cutout
     const name = await saveCutout(id, png);
     updateItem(id, { cutout_path: name, cutout_status: 'done' });
+    return png;
   } catch (e) {
     console.error(`[worker] item ${id} cutout mislukt:`, e);
     try {
@@ -71,6 +81,7 @@ export async function generateCutout(id: number, displayBytes: Uint8Array<ArrayB
     } catch {
       /* db onbereikbaar */
     }
+    return null;
   }
 }
 

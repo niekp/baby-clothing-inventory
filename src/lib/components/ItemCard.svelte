@@ -7,8 +7,14 @@
 
 <a class="card" class:marked={marker} href={`/items/${item.id}`}>
   <div class="photo">
-    {#if item.display_url}
-      <img src={item.display_url} alt={item.type ?? 'kledingstuk'} loading="lazy" />
+    {#if item.cutout_url || item.display_url}
+      <!-- cutout (vrijstaand, geen achtergrond-ruis) heeft voorkeur; anders de displayfoto -->
+      <img
+        src={item.cutout_url ?? item.display_url}
+        class:cut={item.cutout_url}
+        alt={item.type ?? 'kledingstuk'}
+        loading="lazy"
+      />
     {:else}
       <div class="ph" aria-hidden="true"><Icon name="shirt" size={40} /></div>
     {/if}
@@ -62,6 +68,11 @@
     width: 100%;
     height: 100%;
     object-fit: cover;
+  }
+  /* cutout: heel tonen i.p.v. croppen (vrijstaand kledingstuk) */
+  .photo img.cut {
+    object-fit: contain;
+    padding: var(--space-2);
   }
   .ph {
     width: 100%;

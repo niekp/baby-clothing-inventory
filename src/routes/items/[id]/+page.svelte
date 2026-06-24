@@ -97,8 +97,9 @@
   </header>
 
   <button class="photo" onclick={() => (zoom = true)} aria-label="Foto vergroten">
-    {#if data.item.display_url}
-      <img src={data.item.display_url} alt={data.item.type ?? 'kledingstuk'} />
+    {#if data.item.cutout_url || data.item.display_url}
+      <!-- cutout heeft voorkeur (schoon, vrijstaand); zoom toont de echte foto -->
+      <img src={data.item.cutout_url ?? data.item.display_url} alt={data.item.type ?? 'kledingstuk'} />
     {:else}
       <div class="ph"><Icon name="shirt" size={64} /></div>
     {/if}

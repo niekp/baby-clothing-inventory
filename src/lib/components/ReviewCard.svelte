@@ -97,8 +97,8 @@
     onpointerdown={down}
   >
     <div class="photo">
-      {#if item.display_url}
-        <img src={item.display_url} alt={item.type ?? 'kledingstuk'} draggable="false" />
+      {#if item.cutout_url || item.display_url}
+        <img src={item.cutout_url ?? item.display_url} alt={item.type ?? 'kledingstuk'} draggable="false" />
       {:else}
         <div class="ph"><Icon name="shirt" size={64} /></div>
       {/if}
