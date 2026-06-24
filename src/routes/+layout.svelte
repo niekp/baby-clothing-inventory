@@ -3,9 +3,41 @@
   import '$lib/styles/global.css';
   import NavBar from '$lib/components/NavBar.svelte';
   import { page } from '$app/state';
+  import { onMount } from 'svelte';
   import type { Snippet } from 'svelte';
 
   let { children }: { children: Snippet } = $props();
+
+  // PWA-auto-update: check op een nieuwe service worker bij focus/interval en
+  // herlaad eenmalig zodra die de controle overneemt (anders blijft een
+  // geïnstalleerde PWA op de oude, in-geheugen versie hangen).
+  onMount(() => {
+    if (!('serviceWorker' in navigator)) return;
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloading = false;
+    const onChange = () => {
+      if (!hadController || reloading) return; // eerste install → niet herladen
+      reloading = true;
+      location.reload();
+    };
+    navigator.serviceWorker.addEventListener('controllerchange', onChange);
+
+    let reg: ServiceWorkerRegistration | undefined;
+    const check = () => void reg?.update().catch(() => {});
+    void navigator.serviceWorker.ready.then((r) => {
+      reg = r;
+      check();
+    });
+    const onVisible = () => document.visibilityState === 'visible' && check();
+    document.addEventListener('visibilitychange', onVisible);
+    const id = setInterval(check, 60_000);
+
+    return () => {
+      navigator.serviceWorker.removeEventListener('controllerchange', onChange);
+      document.removeEventListener('visibilitychange', onVisible);
+      clearInterval(id);
+    };
+  });
 
   // Scan-modus is echt fullscreen: geen tab-chrome (ook op /scan-sub-routes).
   let hideChrome = $derived(page.url.pathname.startsWith('/scan'));
