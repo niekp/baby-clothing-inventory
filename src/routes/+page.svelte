@@ -2,6 +2,7 @@
   import { goto, invalidateAll } from '$app/navigation';
   import ItemGrid from '$lib/components/ItemGrid.svelte';
   import FilterSheet from '$lib/components/FilterSheet.svelte';
+  import StackBar from '$lib/components/StackBar.svelte';
   import Button from '$lib/components/Button.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import { buildItemQuery } from '$lib/filters';
@@ -131,8 +132,10 @@
     <Button variant="primary" href="/scan"><Icon name="camera" size={18} /> Scan je eerste stuk</Button>
   </div>
 {:else}
-  <ItemGrid items={data.items} markers={childMarkers} />
+  <ItemGrid items={data.items} markers={childMarkers} stackable />
 {/if}
+
+<StackBar />
 
 <FilterSheet
   bind:open={filterOpen}

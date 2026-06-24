@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { expandSize, isSize, sizesMatchingFilter, SIZE_CHIPS } from './config';
+import { expandSize, isSize, sizesMatchingFilter, SIZE_CHIPS, toggleSizePick } from './config';
 
 describe('maten', () => {
   it('expandSize splitst dubbele maten', () => {
@@ -25,5 +25,28 @@ describe('maten', () => {
     const i = SIZE_CHIPS.indexOf('86/92');
     expect(SIZE_CHIPS[i - 1]).toBe('86');
     expect(SIZE_CHIPS[i + 1]).toBe('92');
+  });
+
+  describe('toggleSizePick', () => {
+    it('selecteert een enkele maat vanuit leeg', () => {
+      expect(toggleSizePick('', '68')).toBe('68');
+    });
+    it('wist bij opnieuw tikken op dezelfde enkele maat', () => {
+      expect(toggleSizePick('68', '68')).toBe('');
+    });
+    it('vormt een dubbele maat met de aangrenzende partner', () => {
+      expect(toggleSizePick('62', '68')).toBe('62/68');
+      expect(toggleSizePick('68', '62')).toBe('62/68');
+    });
+    it('weigert een niet-standaard paar (wordt nieuwe enkele maat)', () => {
+      expect(toggleSizePick('56', '62')).toBe('62'); // 56 hoort bij 50, niet bij 62
+    });
+    it('reduceert een dubbele maat naar de getikte component', () => {
+      expect(toggleSizePick('62/68', '62')).toBe('62');
+      expect(toggleSizePick('62/68', '68')).toBe('68');
+    });
+    it('springt vanuit dubbel naar een losse andere maat', () => {
+      expect(toggleSizePick('62/68', '86')).toBe('86');
+    });
   });
 });

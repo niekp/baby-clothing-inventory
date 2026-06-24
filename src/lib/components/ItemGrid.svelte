@@ -5,8 +5,9 @@
 
   let {
     items,
-    markers = new Map<string, string[]>()
-  }: { items: ItemDTO[]; markers?: Map<string, string[]> } = $props();
+    markers = new Map<string, string[]>(),
+    stackable = false
+  }: { items: ItemDTO[]; markers?: Map<string, string[]>; stackable?: boolean } = $props();
 
   // namen van kinderen op (een component van) de maat; dubbele maat matcht beide
   function markerFor(size: string): string[] | null {
@@ -17,7 +18,7 @@
 
 <div class="grid">
   {#each items as item (item.id)}
-    <ItemCard {item} marker={markerFor(item.size)} />
+    <ItemCard {item} marker={markerFor(item.size)} {stackable} />
   {/each}
 </div>
 

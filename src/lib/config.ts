@@ -35,6 +35,27 @@ export function isSize(s: string): boolean {
   return ALL_SIZES.includes(s);
 }
 
+// Lookups uit de standaard paren: partner-maat (62↔68) en de dubbele maat-string.
+const SIZE_PARTNER: Record<string, string> = {};
+const SIZE_COMBINED_OF: Record<string, string> = {};
+for (const c of COMBINED_SIZES) {
+  const [a, b] = expandSize(c);
+  SIZE_PARTNER[a] = b;
+  SIZE_PARTNER[b] = a;
+  SIZE_COMBINED_OF[a] = c;
+  SIZE_COMBINED_OF[b] = c;
+}
+
+// State-machine voor de maat-kiezer (enkel ↔ dubbel via aangrenzende maten).
+// `current`: '' | enkele maat | dubbele maat. `tapped`: altijd een enkele maat.
+export function toggleSizePick(current: string, tapped: string): string {
+  if (current === tapped) return ''; // enkel opnieuw tikken → wissen
+  const parts = current ? expandSize(current) : [];
+  if (parts.length === 2) return tapped; // vanuit dubbel → enkel de getikte maat
+  if (parts.length === 1 && SIZE_PARTNER[parts[0]] === tapped) return SIZE_COMBINED_OF[tapped]; // vorm dubbel
+  return tapped; // nieuwe enkele selectie
+}
+
 // Een kind heeft altijd één enkele maat (geen dubbele) als huidige maat.
 export function isSingleSize(s: string): boolean {
   return SIZE_STRINGS.includes(s);

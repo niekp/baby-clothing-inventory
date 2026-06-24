@@ -1,11 +1,18 @@
 <script lang="ts">
   import type { ItemDTO } from '$lib/server/serialize';
   import Icon from './Icon.svelte';
+  import { stack } from '$lib/client/stack.svelte';
 
-  let { item, marker = null }: { item: ItemDTO; marker?: string[] | null } = $props();
+  let {
+    item,
+    marker = null,
+    stackable = false
+  }: { item: ItemDTO; marker?: string[] | null; stackable?: boolean } = $props();
+
+  let onStack = $derived(stackable && stack.has(item.id));
 </script>
 
-<a class="card" class:marked={marker} href={`/items/${item.id}`}>
+<div class="card" class:marked={marker}>
   <div class="photo">
     {#if item.cutout_url || item.display_url}
       <!-- cutout (vrijstaand, geen achtergrond-ruis) heeft voorkeur; anders de displayfoto -->
@@ -18,8 +25,23 @@
     {:else}
       <div class="ph" aria-hidden="true"><Icon name="shirt" size={40} /></div>
     {/if}
+    <!-- navigatie als overlay-link; knop/badges liggen er los bovenop -->
+    <a class="link" href={`/items/${item.id}`} aria-label={item.type ?? 'kledingstuk'}></a>
     <span class="size">{item.size}</span>
-    {#if item.favorite}<span class="fav" aria-label="favoriet"><Icon name="heart" size={18} fill /></span>{/if}
+    <div class="tr">
+      {#if item.favorite}<span class="fav" aria-label="favoriet"><Icon name="heart" size={18} fill /></span>{/if}
+      {#if stackable}
+        <button
+          class="stack-btn"
+          class:on={onStack}
+          onclick={() => stack.toggle(item.id)}
+          aria-pressed={onStack}
+          aria-label={onStack ? 'Van stapel halen' : 'Op stapel leggen'}
+        >
+          <Icon name={onStack ? 'check' : 'plus'} size={18} />
+        </button>
+      {/if}
+    </div>
     {#if item.ai_status === 'processing' || item.ai_status === 'working'}
       <span class="status work"><Icon name="loader" size={13} spin /> AI…</span>
     {:else if item.ai_status === 'suggested'}
@@ -29,7 +51,7 @@
     {/if}
     {#if marker}<span class="marker" title={`Huidige maat van ${marker.join(', ')}`}>{marker.join(', ')}</span>{/if}
   </div>
-</a>
+</div>
 
 <style>
   .card {
@@ -47,6 +69,24 @@
   .card.marked .photo {
     outline: 3px solid var(--accent);
     outline-offset: -3px;
+  }
+  /* overlay-link vult de foto; badges liggen erbovenop maar laten taps door */
+  .link {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+  }
+  .size,
+  .status,
+  .marker,
+  .tr {
+    z-index: 2;
+  }
+  .size,
+  .status,
+  .marker,
+  .fav {
+    pointer-events: none;
   }
   .marker {
     position: absolute;
@@ -93,13 +133,36 @@
     padding: 2px 8px;
     border-radius: 8px;
   }
-  .fav {
+  .tr {
     position: absolute;
     right: var(--space-2);
     top: var(--space-2);
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .fav {
     color: #ff5a7a;
     font-size: 18px;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  }
+  .stack-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: none;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    padding: 0;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+  .stack-btn.on {
+    background: var(--accent);
+    color: var(--accent-ink);
   }
   .status {
     position: absolute;
