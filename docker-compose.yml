@@ -1,0 +1,54 @@
+services:
+  app:
+    build: .
+    container_name: baby-clothing-inventory
+    restart: unless-stopped
+    user: "1000:1000"
+    ports:
+      - "${PORT:-28871}:${PORT:-28871}"   # LAN/Tailscale only — geen publieke route
+    volumes:
+      - ./data:/app/data
+    environment:
+      HOST: 0.0.0.0             # adapter-node bindt anders op 127.0.0.1
+      PORT: ${PORT:-28871}
+      OLLAMA_URL: ${OLLAMA_URL:-http://ollama:11434}   # via gedeeld ollama-net op servicenaam
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-moondream}
+      OLLAMA_THREADS: ${OLLAMA_THREADS:-2}
+      REMBG_URL: ${REMBG_URL:-http://rembg:28872}       # sidecar op het default compose-net
+      TZ: ${TZ:-Europe/Amsterdam}
+    depends_on:
+      - rembg
+    networks:
+      - default                 # app <-> rembg-sidecar (zelfde compose)
+      - ollama-net              # app -> ollama
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:'+(process.env.PORT||28871)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
+
+  rembg:
+    build: ./rembg
+    container_name: baby-clothing-inventory-rembg
+    restart: unless-stopped
+    user: "1000:1000"
+    environment:
+      REMBG_MODEL: ${REMBG_MODEL:-isnet-general-use}
+      TZ: ${TZ:-Europe/Amsterdam}
+    networks:
+      - default                 # alleen intern bereikbaar (app via servicenaam)
+    deploy:
+      resources:
+        limits: { cpus: '2', memory: 2G }
+        reservations: { cpus: '0.5', memory: 512M }
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28872/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
+
+networks:
+  ollama-net:
+    external: true

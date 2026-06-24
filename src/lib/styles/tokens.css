@@ -1,0 +1,64 @@
+/* Design-tokens — één bron voor het strakke, moderne uiterlijk. */
+/* TODO: dark theme via @media (prefers-color-scheme: dark) — buiten scope nu,
+   maar dan hier de var-set overriden (consumers gebruiken alleen var(--…)). */
+:root {
+  --bg: #f6f7f9;
+  --surface: #ffffff;
+  --surface-2: #eef0f4;
+  --border: #e2e5ec;
+  --text: #1a1c22;
+  --text-muted: #6b7280;
+  --accent: #5b6cff;
+  --accent-ink: #ffffff;
+  --accent-soft: #eceffe;
+  --danger: #e5484d;
+  --ok: #30a46c;
+
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 20px;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  --shadow-1: 0 1px 2px rgba(20, 22, 30, 0.06), 0 1px 3px rgba(20, 22, 30, 0.08);
+  --shadow-2: 0 4px 16px rgba(20, 22, 30, 0.12);
+
+  --font: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --fs-sm: 13px;
+  --fs-base: 15px;
+  --fs-lg: 18px;
+  --fs-xl: 24px;
+
+  --nav-h: 64px;
+  --sidebar-w: 220px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font);
+  font-size: var(--fs-base);
+  -webkit-font-smoothing: antialiased;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}

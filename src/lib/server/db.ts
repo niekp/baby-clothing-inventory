@@ -1,0 +1,320 @@
+import Database from 'better-sqlite3';
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
+import type { Child, Filterset, Item, ItemFilters, ItemInput } from '$lib/types';
+import { runMigrations } from './migrations';
+
+const SCHEMA = `
+CREATE TABLE IF NOT EXISTS item (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  size TEXT NOT NULL,
+  type TEXT,
+  length TEXT,
+  season TEXT,
+  quality TEXT,
+  favorite INTEGER NOT NULL DEFAULT 0,
+  color TEXT,
+  note TEXT,
+  photo_orig TEXT,
+  photo_display TEXT,
+  ai_status TEXT NOT NULL DEFAULT 'none'
+    CHECK (ai_status IN ('none','processing','working','suggested','done','failed')),
+  ai_suggestions TEXT,
+  cutout_path TEXT,
+  cutout_status TEXT NOT NULL DEFAULT 'none'
+    CHECK (cutout_status IN ('none','done','failed')),
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS child (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  current_size TEXT
+);
+
+CREATE TABLE IF NOT EXISTS filterset (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  filter_json TEXT NOT NULL,
+  pinned INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE TABLE IF NOT EXISTS outfit (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  name TEXT NOT NULL,
+  thumb_path TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS outfit_item (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  outfit_id INTEGER NOT NULL REFERENCES outfit(id) ON DELETE CASCADE,
+  item_id INTEGER NOT NULL REFERENCES item(id) ON DELETE CASCADE,
+  x REAL NOT NULL DEFAULT 0,
+  y REAL NOT NULL DEFAULT 0,
+  scale REAL NOT NULL DEFAULT 1,
+  rotation REAL NOT NULL DEFAULT 0,
+  z_index INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_item_claim ON item(ai_status, created_at);
+CREATE INDEX IF NOT EXISTS idx_item_created ON item(created_at);
+CREATE INDEX IF NOT EXISTS idx_outfit_item_outfit ON outfit_item(outfit_id);
+CREATE INDEX IF NOT EXISTS idx_outfit_item_item ON outfit_item(item_id);
+`;
+
+export type DB = Database.Database;
+
+export function createDb(path: string): DB {
+  if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
+  const db = new Database(path);
+  db.pragma('journal_mode = WAL');
+  db.pragma('foreign_keys = ON'); // nodig voor ON DELETE CASCADE
+  db.exec(SCHEMA); // baseline (idempotent)
+  runMigrations(db); // openstaande migraties bovenop de baseline
+  return db;
+}
+
+let _db: DB | null = null;
+
+export function getDb(): DB {
+  if (!_db) _db = createDb(process.env.DATABASE_PATH ?? 'data/app.db');
+  return _db;
+}
+
+export function setDbForTesting(db: DB): void {
+  _db = db;
+}
+
+// --- item CRUD ---
+
+const ITEM_FIELDS = [
+  'size',
+  'type',
+  'length',
+  'season',
+  'quality',
+  'favorite',
+  'color',
+  'note',
+  'photo_orig',
+  'photo_display',
+  'ai_status'
+] as const;
+
+export function createItem(input: ItemInput): Item {
+  const db = getDb();
+  const row = {
+    size: input.size,
+    type: input.type ?? null,
+    length: input.length ?? null,
+    // season is een lijst (meerdere seizoenen per item) → opgeslagen als JSON-array
+    season: input.seasons && input.seasons.length ? JSON.stringify(input.seasons) : null,
+    quality: input.quality ?? null,
+    favorite: input.favorite ?? 0,
+    color: input.color ?? null,
+    note: input.note ?? null,
+    photo_orig: input.photo_orig ?? null,
+    photo_display: input.photo_display ?? null,
+    ai_status: input.ai_status ?? 'none',
+    created_at: new Date().toISOString()
+  };
+  const info = db
+    .prepare(
+      `INSERT INTO item (size,type,length,season,quality,favorite,color,note,photo_orig,photo_display,ai_status,created_at)
+       VALUES (@size,@type,@length,@season,@quality,@favorite,@color,@note,@photo_orig,@photo_display,@ai_status,@created_at)`
+    )
+    .run(row);
+  return getItem(Number(info.lastInsertRowid))!;
+}
+
+export function getItem(id: number): Item | undefined {
+  return getDb().prepare('SELECT * FROM item WHERE id = ?').get(id) as Item | undefined;
+}
+
+// Patch een subset velden. ai_suggestions/cutout_* mogen ook mee.
+export function updateItem(
+  id: number,
+  patch: Partial<Item>
+): Item | undefined {
+  const db = getDb();
+  const allowed: (keyof Item)[] = [
+    ...ITEM_FIELDS,
+    'ai_suggestions',
+    'cutout_path',
+    'cutout_status'
+  ];
+  const keys = allowed.filter((k) => k in patch).map((k) => String(k));
+  if (keys.length === 0) return getItem(id);
+  const setClause = keys.map((k) => `${k} = @${k}`).join(', ');
+  const params: Record<string, unknown> = { id };
+  for (const k of keys) params[k] = patch[k as keyof Item];
+  db.prepare(`UPDATE item SET ${setClause} WHERE id = @id`).run(params);
+  return getItem(id);
+}
+
+export function deleteItem(id: number): boolean {
+  return getDb().prepare('DELETE FROM item WHERE id = ?').run(id).changes > 0;
+}
+
+const MULTI_FILTERS: { key: keyof ItemFilters; col: string }[] = [
+  { key: 'size', col: 'size' },
+  { key: 'type', col: 'type' },
+  { key: 'length', col: 'length' },
+  { key: 'quality', col: 'quality' },
+  { key: 'color', col: 'color' },
+  { key: 'ai_status', col: 'ai_status' }
+  // season niet hier: het is een JSON-array → aparte json_each-match (zie queryItems)
+];
+
+export function queryItems(filters: ItemFilters = {}): Item[] {
+  const where: string[] = [];
+  const params: unknown[] = [];
+
+  for (const { key, col } of MULTI_FILTERS) {
+    const vals = filters[key] as string[] | undefined;
+    if (vals && vals.length) {
+      where.push(`${col} IN (${vals.map(() => '?').join(',')})`);
+      params.push(...vals);
+    }
+  }
+  // season: item matcht als z'n lijst één van de gevraagde seizoenen bevat, OF
+  // 'allseason' (jaar-rond items horen onder elk specifiek seizoen). json_each
+  // op een NULL/lege kolom levert geen rijen → zo'n item matcht niet.
+  if (filters.season && filters.season.length) {
+    const wanted = Array.from(new Set([...filters.season, 'allseason']));
+    where.push(
+      `EXISTS (SELECT 1 FROM json_each(item.season) WHERE value IN (${wanted.map(() => '?').join(',')}))`
+    );
+    params.push(...wanted);
+  }
+  if (filters.favorite) where.push('favorite = 1');
+  if (filters.search) {
+    where.push('(type LIKE ? OR color LIKE ? OR note LIKE ?)');
+    const like = `%${filters.search}%`;
+    params.push(like, like, like);
+  }
+
+  const orderBy =
+    filters.sort === 'size' ? 'CAST(size AS INTEGER) ASC, created_at DESC' : 'created_at DESC';
+  const sql =
+    'SELECT * FROM item' +
+    (where.length ? ` WHERE ${where.join(' AND ')}` : '') +
+    ` ORDER BY ${orderBy}`;
+  return getDb().prepare(sql).all(...params) as Item[];
+}
+
+// Aggregatie maat × type voor de heatmap.
+export function countBySizeType(): { size: string; type: string | null; n: number }[] {
+  return getDb()
+    .prepare('SELECT size, type, COUNT(*) AS n FROM item GROUP BY size, type')
+    .all() as { size: string; type: string | null; n: number }[];
+}
+
+// --- worker-claim ---
+
+// Atomair één processing-item naar 'working' tillen (voorkomt dubbel oppakken).
+export function claimNextProcessing(): Item | undefined {
+  return getDb()
+    .prepare(
+      `UPDATE item SET ai_status='working'
+       WHERE id = (SELECT id FROM item WHERE ai_status='processing' ORDER BY created_at LIMIT 1)
+       RETURNING *`
+    )
+    .get() as Item | undefined;
+}
+
+// Bij opstart: vastgelopen 'working' terug naar 'processing'.
+export function sweepStuckWorking(): number {
+  return getDb().prepare("UPDATE item SET ai_status='processing' WHERE ai_status='working'").run()
+    .changes;
+}
+
+// Worker schrijft z'n resultaat ALLEEN als 't item nog 'working' is. Heeft de
+// gebruiker 't ondertussen handmatig afgehandeld (done) of verwijderd, dan is de
+// update een no-op → geen overschrijven van handwerk. Retourneert of 't toesloeg.
+export function finishTagging(id: number, suggestionsJson: string): boolean {
+  return (
+    getDb()
+      .prepare(
+        "UPDATE item SET ai_suggestions = ?, ai_status = 'suggested' WHERE id = ? AND ai_status = 'working'"
+      )
+      .run(suggestionsJson, id).changes > 0
+  );
+}
+
+export function failTagging(id: number): boolean {
+  return (
+    getDb()
+      .prepare("UPDATE item SET ai_status = 'failed' WHERE id = ? AND ai_status = 'working'")
+      .run(id).changes > 0
+  );
+}
+
+// --- filterset CRUD ---
+
+export function listFiltersets(): Filterset[] {
+  return getDb()
+    .prepare('SELECT * FROM filterset ORDER BY pinned DESC, name ASC')
+    .all() as Filterset[];
+}
+
+export function createFilterset(name: string, filterJson: string, pinned = 0): Filterset {
+  const info = getDb()
+    .prepare('INSERT INTO filterset (name, filter_json, pinned) VALUES (?, ?, ?)')
+    .run(name, filterJson, pinned);
+  return getDb()
+    .prepare('SELECT * FROM filterset WHERE id = ?')
+    .get(Number(info.lastInsertRowid)) as Filterset;
+}
+
+export function updateFilterset(
+  id: number,
+  patch: Partial<Pick<Filterset, 'name' | 'filter_json' | 'pinned'>>
+): Filterset | undefined {
+  const keys = (['name', 'filter_json', 'pinned'] as const).filter((k) => k in patch);
+  if (keys.length) {
+    const set = keys.map((k) => `${k} = @${k}`).join(', ');
+    const params: Record<string, unknown> = { id };
+    for (const k of keys) params[k] = patch[k];
+    getDb().prepare(`UPDATE filterset SET ${set} WHERE id = @id`).run(params);
+  }
+  return getDb().prepare('SELECT * FROM filterset WHERE id = ?').get(id) as Filterset | undefined;
+}
+
+export function deleteFilterset(id: number): boolean {
+  return getDb().prepare('DELETE FROM filterset WHERE id = ?').run(id).changes > 0;
+}
+
+// --- child CRUD ---
+
+export function listChildren(): Child[] {
+  return getDb().prepare('SELECT * FROM child ORDER BY id ASC').all() as Child[];
+}
+
+export function createChild(name: string, currentSize: string | null = null): Child {
+  const info = getDb()
+    .prepare('INSERT INTO child (name, current_size) VALUES (?, ?)')
+    .run(name, currentSize);
+  return getDb()
+    .prepare('SELECT * FROM child WHERE id = ?')
+    .get(Number(info.lastInsertRowid)) as Child;
+}
+
+export function updateChild(
+  id: number,
+  patch: Partial<Pick<Child, 'name' | 'current_size'>>
+): Child | undefined {
+  const keys = (['name', 'current_size'] as const).filter((k) => k in patch);
+  if (keys.length) {
+    const set = keys.map((k) => `${k} = @${k}`).join(', ');
+    const params: Record<string, unknown> = { id };
+    for (const k of keys) params[k] = patch[k];
+    getDb().prepare(`UPDATE child SET ${set} WHERE id = @id`).run(params);
+  }
+  return getDb().prepare('SELECT * FROM child WHERE id = ?').get(id) as Child | undefined;
+}
+
+export function deleteChild(id: number): boolean {
+  return getDb().prepare('DELETE FROM child WHERE id = ?').run(id).changes > 0;
+}

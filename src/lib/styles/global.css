@@ -1,0 +1,30 @@
+/* Globale utility/basis-laag — herhaalde patronen die in meerdere componenten
+   terugkwamen. Thema-waarden komen uit tokens.css. Component-specifieke layout
+   blijft scoped in de component zelf. */
+
+.muted {
+  color: var(--text-muted);
+}
+
+/* Tekst-invoer (niet bare `input`, anders pakt 't ook checkboxes/search). */
+.input {
+  width: 100%;
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--fs-base);
+  background: var(--surface);
+  color: var(--text);
+}
+.input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* Veld-label boven een invoergroep. */
+.field-label {
+  margin: var(--space-3) 0 var(--space-2);
+  font-size: var(--fs-sm);
+  color: var(--text-muted);
+  font-weight: 600;
+}
