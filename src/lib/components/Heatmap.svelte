@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { TYPES, SIZE_STRINGS } from '$lib/config';
+  import { TYPES, SIZE_STRINGS, expandSize } from '$lib/config';
   import { buildItemQuery } from '$lib/filters';
 
   let {
@@ -18,13 +18,15 @@
     const other = new Map<string, number>();
     let max = 0;
     for (const c of counts) {
-      const size = String(c.size);
-      if (c.type && TYPE_SET.has(c.type)) {
-        m.set(`${size}|${c.type}`, (m.get(`${size}|${c.type}`) ?? 0) + c.n);
-        max = Math.max(max, m.get(`${size}|${c.type}`)!);
-      } else {
-        other.set(size, (other.get(size) ?? 0) + c.n);
-        max = Math.max(max, other.get(size)!);
+      // dubbele maat (86/92) telt mee in beide maat-rijen (86 én 92)
+      for (const size of expandSize(String(c.size))) {
+        if (c.type && TYPE_SET.has(c.type)) {
+          m.set(`${size}|${c.type}`, (m.get(`${size}|${c.type}`) ?? 0) + c.n);
+          max = Math.max(max, m.get(`${size}|${c.type}`)!);
+        } else {
+          other.set(size, (other.get(size) ?? 0) + c.n);
+          max = Math.max(max, other.get(size)!);
+        }
       }
     }
     return { m, other, max };

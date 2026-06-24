@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { deleteChild, updateChild } from '$lib/server/db';
-import { isSize } from '$lib/config';
+import { isSingleSize } from '$lib/config';
 
 function parseId(raw: string): number {
   const id = Number(raw);
@@ -22,7 +22,7 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
   if (typeof body.name === 'string') patch.name = body.name.trim();
   if ('current_size' in body) {
     const size = body.current_size == null ? null : String(body.current_size);
-    if (size !== null && !isSize(size)) error(400, 'Ongeldige maat');
+    if (size !== null && !isSingleSize(size)) error(400, 'Ongeldige maat');
     patch.current_size = size;
   }
   const updated = updateChild(id, patch);

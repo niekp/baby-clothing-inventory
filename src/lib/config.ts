@@ -2,10 +2,49 @@
 
 export const SIZES = [50, 56, 62, 68, 74, 80, 86, 92, 98, 104, 110, 116, 122, 128] as const;
 
-// Maten als strings (db slaat maat als tekst op) + validatie-helper.
+// Maten als strings (db slaat maat als tekst op).
 export const SIZE_STRINGS: string[] = SIZES.map(String);
+
+// Dubbele maten (standaard EU-paren). Een item met een dubbele maat past beide
+// losse maten: het matcht filters/Cijfers/kind-highlight voor allebei.
+export const COMBINED_SIZES = [
+  '50/56',
+  '62/68',
+  '74/80',
+  '86/92',
+  '98/104',
+  '110/116',
+  '122/128'
+] as const;
+
+// '86/92' → ['86','92']; '86' → ['86'].
+export function expandSize(s: string): string[] {
+  return s.split('/');
+}
+
+// Sorteersleutel: dubbele maat net ná z'n eerste component (50, 50/56, 56, …).
+function sizeSortKey(s: string): number {
+  return Number(expandSize(s)[0]) + (s.includes('/') ? 0.5 : 0);
+}
+
+// Alle kiesbare/opslaanbare maten (enkel + dubbel) en de chip-volgorde.
+export const ALL_SIZES: string[] = [...SIZE_STRINGS, ...COMBINED_SIZES];
+export const SIZE_CHIPS: string[] = [...ALL_SIZES].sort((a, b) => sizeSortKey(a) - sizeSortKey(b));
+
 export function isSize(s: string): boolean {
+  return ALL_SIZES.includes(s);
+}
+
+// Een kind heeft altijd één enkele maat (geen dubbele) als huidige maat.
+export function isSingleSize(s: string): boolean {
   return SIZE_STRINGS.includes(s);
+}
+
+// Voor het maat-filter: alle opgeslagen maten waarvan een component overlapt met
+// een gevraagde maat (zo toont filter '86' ook '86/92').
+export function sizesMatchingFilter(wanted: string[]): string[] {
+  const components = new Set(wanted.flatMap(expandSize));
+  return ALL_SIZES.filter((s) => expandSize(s).some((c) => components.has(c)));
 }
 export function isSeason(s: string): boolean {
   return (SEASONS as readonly string[]).includes(s);

@@ -81,6 +81,13 @@ describe('queryItems filtering', () => {
     expect(queryItems({ size: ['62'] }).length).toBe(1);
   });
 
+  it('dubbele maat telt voor beide componenten', () => {
+    createItem({ size: '86/92', type: 'romper' });
+    expect(queryItems({ size: ['86'] }).map((i) => i.size)).toEqual(['86/92']); // 86 → ook 86/92
+    expect(queryItems({ size: ['92'] }).map((i) => i.size)).toEqual(['86/92']); // 92 → ook 86/92
+    expect(queryItems({ size: ['68'] }).length).toBe(2); // 86/92 telt NIET mee bij 68
+  });
+
   it('combines filters with AND', () => {
     const r = queryItems({ size: ['68'], type: ['broek'] });
     expect(r.length).toBe(1);

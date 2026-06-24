@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { Child, Filterset, Item, ItemFilters, ItemInput } from '$lib/types';
 import { runMigrations } from './migrations';
+import { sizesMatchingFilter } from '$lib/config';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS item (
@@ -158,7 +159,6 @@ export function deleteItem(id: number): boolean {
 }
 
 const MULTI_FILTERS: { key: keyof ItemFilters; col: string }[] = [
-  { key: 'size', col: 'size' },
   { key: 'type', col: 'type' },
   { key: 'length', col: 'length' },
   { key: 'quality', col: 'quality' },
@@ -177,6 +177,13 @@ export function queryItems(filters: ItemFilters = {}): Item[] {
       where.push(`${col} IN (${vals.map(() => '?').join(',')})`);
       params.push(...vals);
     }
+  }
+  // maat: dubbele maten tellen voor beide componenten → expandeer de gevraagde
+  // maten naar alle opgeslagen maat-strings die overlappen (bv. 86 → 86, 86/92).
+  if (filters.size && filters.size.length) {
+    const wanted = sizesMatchingFilter(filters.size);
+    where.push(`size IN (${wanted.map(() => '?').join(',')})`);
+    params.push(...wanted);
   }
   // season: item matcht als z'n lijst één van de gevraagde seizoenen bevat, OF
   // 'allseason' (jaar-rond items horen onder elk specifiek seizoen). json_each

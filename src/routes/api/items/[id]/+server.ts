@@ -3,10 +3,9 @@ import type { RequestHandler } from './$types';
 import { deleteItem, getItem, updateItem } from '$lib/server/db';
 import { deletePhotos } from '$lib/server/photos';
 import { serializeItem } from '$lib/server/serialize';
-import { AI_STATUSES, isLength, isQuality, isSeason, isType, SIZES } from '$lib/config';
+import { AI_STATUSES, isLength, isQuality, isSeason, isSize, isType } from '$lib/config';
 import type { Item } from '$lib/types';
 
-const SIZE_SET = new Set(SIZES.map(String));
 const AI_SET = new Set<string>(AI_STATUSES);
 
 function parseId(raw: string): number {
@@ -57,7 +56,7 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
   }
   if ('size' in body) {
     const s = String(body.size);
-    if (!SIZE_SET.has(s)) error(400, 'Ongeldige maat');
+    if (!isSize(s)) error(400, 'Ongeldige maat');
     patch.size = s;
   }
   if ('favorite' in body) patch.favorite = body.favorite ? 1 : 0;

@@ -4,10 +4,8 @@ import { createItem, deleteItem, queryItems, updateItem } from '$lib/server/db';
 import { deletePhotos, extForMime, savePhoto } from '$lib/server/photos';
 import { serializeItem } from '$lib/server/serialize';
 import { parseItemFilters } from '$lib/filters';
-import { isLength, isQuality, isSeason, isType, SIZES } from '$lib/config';
+import { isLength, isQuality, isSeason, isSize, isType } from '$lib/config';
 import type { ItemInput } from '$lib/types';
-
-const SIZE_SET = new Set(SIZES.map(String));
 
 function str(form: FormData, key: string): string | undefined {
   const v = form.get(key);
@@ -33,7 +31,7 @@ export const POST: RequestHandler = async ({ request }) => {
   }
 
   const size = str(form, 'size');
-  if (!size || !SIZE_SET.has(size)) error(400, 'Ongeldige of ontbrekende maat');
+  if (!size || !isSize(size)) error(400, 'Ongeldige of ontbrekende maat');
 
   // seizoenen: meerdere form-velden 'season' (alleen geldige waarden)
   const seasons = form
