@@ -14,7 +14,13 @@
     {/if}
     <span class="size">{item.size}</span>
     {#if item.favorite}<span class="fav" aria-label="favoriet"><Icon name="heart" size={18} fill /></span>{/if}
-    {#if item.ai_status === 'suggested'}<span class="dot" aria-label="te reviewen"></span>{/if}
+    {#if item.ai_status === 'processing' || item.ai_status === 'working'}
+      <span class="status work"><Icon name="loader" size={13} spin /> AI…</span>
+    {:else if item.ai_status === 'suggested'}
+      <span class="status check"><Icon name="check" size={13} /> controleren</span>
+    {:else if item.ai_status === 'failed'}
+      <span class="status fail"><Icon name="alert" size={13} /> mislukt</span>
+    {/if}
     {#if marker}<span class="marker" title={`Huidige maat van ${marker.join(', ')}`}>{marker.join(', ')}</span>{/if}
   </div>
   {#if item.type}<span class="type">{item.type}</span>{/if}
@@ -85,15 +91,28 @@
     font-size: 18px;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   }
-  .dot {
+  .status {
     position: absolute;
     right: var(--space-2);
     bottom: var(--space-2);
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-size: 11px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 999px;
+    color: #fff;
+  }
+  .status.work {
+    background: rgba(0, 0, 0, 0.7);
+  }
+  .status.check {
     background: var(--accent);
-    border: 2px solid #fff;
+    color: var(--accent-ink);
+  }
+  .status.fail {
+    background: var(--danger);
   }
   .type {
     font-size: var(--fs-sm);

@@ -10,6 +10,13 @@
 
   let { data }: { data: PageData } = $props();
 
+  // Live bijwerken zolang er items in verwerking zijn (worker tagt async).
+  $effect(() => {
+    if (data.aiCounts.processing === 0) return;
+    const id = setInterval(() => void invalidateAll(), 4000);
+    return () => clearInterval(id);
+  });
+
   let filterOpen = $state(false);
   let q = $state('');
   // seed/reset het zoekveld alleen als de genavigeerde zoekterm écht wijzigt
@@ -94,10 +101,20 @@
   </div>
 {/if}
 
-{#if data.inboxCount > 0}
-  <a class="review-banner" href="/review">
-    {data.inboxCount} scan{data.inboxCount === 1 ? '' : 's'} te controleren <Icon name="arrow-right" size={16} />
-  </a>
+{#if data.aiCounts.processing + data.aiCounts.suggested + data.aiCounts.failed > 0}
+  <div class="ai-status">
+    {#if data.aiCounts.processing > 0}
+      <span class="seg work"><Icon name="loader" size={14} spin /> {data.aiCounts.processing} in verwerking</span>
+    {/if}
+    {#if data.aiCounts.suggested > 0}
+      <a class="seg check" href="/review"
+        ><Icon name="check" size={14} /> {data.aiCounts.suggested} te controleren <Icon name="arrow-right" size={14} /></a
+      >
+    {/if}
+    {#if data.aiCounts.failed > 0}
+      <a class="seg fail" href="/review"><Icon name="alert" size={14} /> {data.aiCounts.failed} mislukt</a>
+    {/if}
+  </div>
 {/if}
 
 {#if activeChips.length}
@@ -152,14 +169,32 @@
     white-space: nowrap;
     font-size: var(--fs-sm);
   }
-  .review-banner {
-    display: block;
+  .ai-status {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
+    margin-bottom: var(--space-3);
+  }
+  .seg {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    border-radius: 999px;
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--fs-sm);
+    font-weight: 600;
+  }
+  .seg.work {
+    background: var(--surface-2);
+    color: var(--text-muted);
+  }
+  .seg.check {
     background: var(--accent-soft);
     color: var(--accent);
-    border-radius: var(--radius);
-    padding: var(--space-3) var(--space-4);
-    margin-bottom: var(--space-3);
-    font-weight: 600;
+  }
+  .seg.fail {
+    background: color-mix(in srgb, var(--danger) 15%, transparent);
+    color: var(--danger);
   }
   .active {
     display: flex;

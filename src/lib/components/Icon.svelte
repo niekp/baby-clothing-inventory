@@ -34,7 +34,10 @@
       '<circle cx="12" cy="12" r="10"/><path d="m9 12 2 2 4-4"/>',
     plus: '<path d="M5 12h14"/><path d="M12 5v14"/>',
     filter: '<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/>',
-    'chevron-down': '<path d="m6 9 6 6 6-6"/>'
+    'chevron-down': '<path d="m6 9 6 6 6-6"/>',
+    loader: '<path d="M21 12a9 9 0 1 1-6.219-8.56"/>',
+    alert:
+      '<path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/>'
   } as const;
 
   export type IconName = keyof typeof ICONS;
@@ -45,17 +48,20 @@
     name,
     size = 20,
     fill = false,
+    spin = false,
     ...rest
   }: {
     name: IconName;
     size?: number;
     fill?: boolean; // gevuld i.p.v. lijn (bv. actieve favoriet)
+    spin?: boolean; // ronddraaien (bv. loader)
     [key: string]: unknown;
   } = $props();
 </script>
 
 <svg
   class="icon"
+  class:spin
   width={size}
   height={size}
   viewBox="0 0 24 24"
@@ -73,5 +79,18 @@
     display: inline-block;
     vertical-align: middle;
     flex: none;
+  }
+  .icon.spin {
+    animation: icon-spin 1s linear infinite;
+  }
+  @keyframes icon-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .icon.spin {
+      animation: none;
+    }
   }
 </style>
