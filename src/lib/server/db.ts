@@ -295,31 +295,56 @@ export function deleteFilterset(id: number): boolean {
 
 // --- child CRUD ---
 
-export function listChildren(): Child[] {
-  return getDb().prepare('SELECT * FROM child ORDER BY id ASC').all() as Child[];
+type ChildRow = { id: number; name: string; current_size: string | null };
+
+// current_size-kolom bevat een JSON-array; kale strings (pre-migratie) → 1 maat.
+function rowToChild(r: ChildRow): Child {
+  let sizes: string[] = [];
+  if (r.current_size) {
+    try {
+      const v = JSON.parse(r.current_size);
+      sizes = Array.isArray(v) ? v.map(String) : [String(v)];
+    } catch {
+      sizes = [r.current_size];
+    }
+  }
+  return { id: r.id, name: r.name, current_sizes: sizes };
 }
 
-export function createChild(name: string, currentSize: string | null = null): Child {
+export function listChildren(): Child[] {
+  return (getDb().prepare('SELECT * FROM child ORDER BY id ASC').all() as ChildRow[]).map(rowToChild);
+}
+
+function getChild(id: number): Child | undefined {
+  const row = getDb().prepare('SELECT * FROM child WHERE id = ?').get(id) as ChildRow | undefined;
+  return row ? rowToChild(row) : undefined;
+}
+
+export function createChild(name: string, currentSizes: string[] = []): Child {
   const info = getDb()
     .prepare('INSERT INTO child (name, current_size) VALUES (?, ?)')
-    .run(name, currentSize);
-  return getDb()
-    .prepare('SELECT * FROM child WHERE id = ?')
-    .get(Number(info.lastInsertRowid)) as Child;
+    .run(name, JSON.stringify(currentSizes));
+  return getChild(Number(info.lastInsertRowid)) as Child;
 }
 
 export function updateChild(
   id: number,
-  patch: Partial<Pick<Child, 'name' | 'current_size'>>
+  patch: { name?: string; current_sizes?: string[] }
 ): Child | undefined {
-  const keys = (['name', 'current_size'] as const).filter((k) => k in patch);
-  if (keys.length) {
-    const set = keys.map((k) => `${k} = @${k}`).join(', ');
-    const params: Record<string, unknown> = { id };
-    for (const k of keys) params[k] = patch[k];
-    getDb().prepare(`UPDATE child SET ${set} WHERE id = @id`).run(params);
+  const sets: string[] = [];
+  const params: Record<string, unknown> = { id };
+  if (patch.name !== undefined) {
+    sets.push('name = @name');
+    params.name = patch.name;
   }
-  return getDb().prepare('SELECT * FROM child WHERE id = ?').get(id) as Child | undefined;
+  if (patch.current_sizes !== undefined) {
+    sets.push('current_size = @current_size');
+    params.current_size = JSON.stringify(patch.current_sizes);
+  }
+  if (sets.length) {
+    getDb().prepare(`UPDATE child SET ${sets.join(', ')} WHERE id = @id`).run(params);
+  }
+  return getChild(id);
 }
 
 export function deleteChild(id: number): boolean {

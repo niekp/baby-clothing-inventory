@@ -30,7 +30,7 @@ export interface Item {
 export interface Child {
   id: number;
   name: string;
-  current_size: string | null;
+  current_sizes: string[];
 }
 
 export interface Filterset {

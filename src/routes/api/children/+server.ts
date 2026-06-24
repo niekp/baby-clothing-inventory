@@ -1,12 +1,12 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { createChild, listChildren } from '$lib/server/db';
-import { isSingleSize } from '$lib/config';
+import { parseChildSizes } from '$lib/server/children';
 
 export const GET: RequestHandler = () => json(listChildren());
 
 export const POST: RequestHandler = async ({ request }) => {
-  let body: { name?: unknown; current_size?: unknown };
+  let body: { name?: unknown; current_sizes?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -15,7 +15,5 @@ export const POST: RequestHandler = async ({ request }) => {
   if (!body || typeof body !== 'object') error(400, 'Ongeldige body');
   const name = typeof body.name === 'string' ? body.name.trim() : '';
   if (!name) error(400, 'Naam verplicht');
-  const size = body.current_size == null ? null : String(body.current_size);
-  if (size !== null && !isSingleSize(size)) error(400, 'Ongeldige maat');
-  return json(createChild(name, size), { status: 201 });
+  return json(createChild(name, parseChildSizes(body.current_sizes)), { status: 201 });
 };

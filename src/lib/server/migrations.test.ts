@@ -3,7 +3,8 @@ import Database from 'better-sqlite3';
 import { MIGRATIONS, runMigrations } from './migrations';
 
 const SCHEMA =
-  'CREATE TABLE item (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, season TEXT, ai_suggestions TEXT)';
+  'CREATE TABLE item (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, season TEXT, ai_suggestions TEXT);' +
+  'CREATE TABLE child (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, current_size TEXT)';
 
 describe('runMigrations', () => {
   it('converts legacy bare-string season to a JSON array, leaves JSON/NULL alone', () => {
@@ -40,6 +41,23 @@ describe('runMigrations', () => {
     expect(rows[0].type).toBe('shirt');
     expect(JSON.parse(rows[0].ai_suggestions!).type).toBe('shirt');
     expect(rows[1].type).toBe('broek'); // ongemoeid
+  });
+
+  it('zet kale-string child.current_size om naar een JSON-array, laat NULL met rust', () => {
+    const db = new Database(':memory:');
+    db.exec(SCHEMA);
+    db.prepare("INSERT INTO child (name, current_size) VALUES ('A', '74')").run();
+    db.prepare(`INSERT INTO child (name, current_size) VALUES ('B', '["86","92"]')`).run();
+    db.prepare("INSERT INTO child (name, current_size) VALUES ('C', NULL)").run();
+
+    runMigrations(db);
+
+    const rows = db.prepare('SELECT current_size FROM child ORDER BY id').all() as {
+      current_size: string | null;
+    }[];
+    expect(JSON.parse(rows[0].current_size!)).toEqual(['74']); // bare → array
+    expect(JSON.parse(rows[1].current_size!)).toEqual(['86', '92']); // al JSON → ongewijzigd
+    expect(rows[2].current_size).toBeNull();
   });
 
   it('is idempotent — a second run applies nothing', () => {

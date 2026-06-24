@@ -1,7 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { deleteChild, updateChild } from '$lib/server/db';
-import { isSingleSize } from '$lib/config';
+import { parseChildSizes } from '$lib/server/children';
 
 function parseId(raw: string): number {
   const id = Number(raw);
@@ -11,20 +11,16 @@ function parseId(raw: string): number {
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
   const id = parseId(params.id);
-  let body: { name?: unknown; current_size?: unknown };
+  let body: { name?: unknown; current_sizes?: unknown };
   try {
     body = await request.json();
   } catch {
     error(400, 'Ongeldige JSON');
   }
   if (!body || typeof body !== 'object') error(400, 'Ongeldige body');
-  const patch: { name?: string; current_size?: string | null } = {};
+  const patch: { name?: string; current_sizes?: string[] } = {};
   if (typeof body.name === 'string') patch.name = body.name.trim();
-  if ('current_size' in body) {
-    const size = body.current_size == null ? null : String(body.current_size);
-    if (size !== null && !isSingleSize(size)) error(400, 'Ongeldige maat');
-    patch.current_size = size;
-  }
+  if ('current_sizes' in body) patch.current_sizes = parseChildSizes(body.current_sizes);
   const updated = updateChild(id, patch);
   if (!updated) error(404, 'Niet gevonden');
   return json(updated);

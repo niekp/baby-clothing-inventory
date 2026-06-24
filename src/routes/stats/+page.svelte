@@ -10,14 +10,14 @@
   // kind-markers: standaard alle kinderen met een maat aan
   let enabled = $state<Record<number, boolean>>({});
   $effect(() => {
-    enabled = Object.fromEntries(data.children.filter((c) => c.current_size).map((c) => [c.id, true]));
+    enabled = Object.fromEntries(
+      data.children.filter((c) => c.current_sizes.length).map((c) => [c.id, true])
+    );
   });
 
   let highlightSizes = $derived(
     new Set(
-      data.children
-        .filter((c) => c.current_size && enabled[c.id])
-        .map((c) => c.current_size as string)
+      data.children.filter((c) => c.current_sizes.length && enabled[c.id]).flatMap((c) => c.current_sizes)
     )
   );
 </script>
@@ -32,12 +32,12 @@
 {:else}
   <p class="muted total">{data.total} item{data.total === 1 ? '' : 's'} totaal · tik een cel om te filteren</p>
 
-  {#if data.children.some((c) => c.current_size)}
+  {#if data.children.some((c) => c.current_sizes.length)}
     <div class="markers">
       {#each data.children as c (c.id)}
-        {#if c.current_size}
+        {#if c.current_sizes.length}
           <Chip
-            label={`${c.name} · ${c.current_size}`}
+            label={`${c.name} · ${c.current_sizes.join(', ')}`}
             selected={enabled[c.id]}
             onclick={() => (enabled[c.id] = !enabled[c.id])}
           />

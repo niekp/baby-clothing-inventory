@@ -1,8 +1,10 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/Button.svelte';
+  import Chip from '$lib/components/Chip.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import { SIZES } from '$lib/config';
+  import type { Child } from '$lib/types';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -36,6 +38,13 @@
     else msg = 'Wijziging mislukt'; // (input toont nog de niet-opgeslagen waarde)
   }
 
+  function toggleSize(child: Child, size: string) {
+    const next = child.current_sizes.includes(size)
+      ? child.current_sizes.filter((s) => s !== size)
+      : [...child.current_sizes, size];
+    patchChild(child.id, { current_sizes: next });
+  }
+
   async function removeChild(id: number) {
     if (!confirm('Kind verwijderen?')) return;
     msg = null;
@@ -49,29 +58,35 @@
 
 <section>
   <h2>Kinderen</h2>
-  <p class="muted">Markeer de huidige maat per kind; deze licht op in de cijfers.</p>
+  <p class="muted">
+    Markeer de huidige maat/maten per kind; deze lichten op in de cijfers. Zit een kind
+    tussen maten in, kies er dan meerdere.
+  </p>
   {#if msg}<p class="err" role="alert">{msg}</p>{/if}
 
   {#each data.children as child (child.id)}
     <div class="child">
-      <input
-        class="input name"
-        value={child.name}
-        onchange={(e) => patchChild(child.id, { name: e.currentTarget.value })}
-        aria-label="Naam"
-      />
-      <select
-        class="input size"
-        value={child.current_size ?? ''}
-        onchange={(e) => patchChild(child.id, { current_size: e.currentTarget.value || null })}
-        aria-label="Huidige maat"
-      >
-        <option value="">— maat —</option>
-        {#each SIZES as s (s)}<option value={String(s)}>{s}</option>{/each}
-      </select>
-      <button class="del" onclick={() => removeChild(child.id)} aria-label="Verwijderen"
-        ><Icon name="x" size={18} /></button
-      >
+      <div class="row">
+        <input
+          class="input name"
+          value={child.name}
+          onchange={(e) => patchChild(child.id, { name: e.currentTarget.value })}
+          aria-label="Naam"
+        />
+        <button class="del" onclick={() => removeChild(child.id)} aria-label="Verwijderen"
+          ><Icon name="x" size={18} /></button
+        >
+      </div>
+      <div class="sizes">
+        {#each SIZES as s (s)}
+          {@const size = String(s)}
+          <Chip
+            label={size}
+            selected={child.current_sizes.includes(size)}
+            onclick={() => toggleSize(child, size)}
+          />
+        {/each}
+      </div>
     </div>
   {/each}
 
@@ -106,15 +121,23 @@
   }
   .child {
     display: flex;
+    flex-direction: column;
+    gap: var(--space-2);
+    padding: var(--space-3) 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .child .row {
+    display: flex;
     gap: var(--space-2);
     align-items: center;
-    margin-bottom: var(--space-2);
   }
   .child .name {
     flex: 1;
   }
-  .child .size {
-    width: 110px;
+  .child .sizes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
   }
   .del {
     background: none;

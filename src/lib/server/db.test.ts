@@ -217,23 +217,31 @@ describe('filterset CRUD', () => {
 });
 
 describe('child CRUD', () => {
-  it('creates, updates, lists', () => {
-    const c = createChild('Kind A', '68');
-    expect(c.current_size).toBe('68');
-    updateChild(c.id, { current_size: '74' });
-    expect(listChildren()[0].current_size).toBe('74');
+  it('creates, updates, lists meerdere maten', () => {
+    const c = createChild('Kind A', ['68']);
+    expect(c.current_sizes).toEqual(['68']);
+    updateChild(c.id, { current_sizes: ['74', '80'] });
+    expect(listChildren()[0].current_sizes).toEqual(['74', '80']);
+  });
+
+  it('defaultt naar een lege lijst en kan weer geleegd worden', () => {
+    const c = createChild('Leeg');
+    expect(c.current_sizes).toEqual([]);
+    updateChild(c.id, { current_sizes: ['62'] });
+    updateChild(c.id, { current_sizes: [] });
+    expect(listChildren()[0].current_sizes).toEqual([]);
   });
 
   it('does not let a stray id in patch retarget the row', () => {
-    const a = createChild('A', '50');
-    const b = createChild('B', '56');
+    const a = createChild('A', ['50']);
+    const b = createChild('B', ['56']);
     updateChild(a.id, { name: 'A2', id: b.id } as never);
     expect(listChildren().find((c) => c.id === a.id)?.name).toBe('A2');
     expect(listChildren().find((c) => c.id === b.id)?.name).toBe('B');
   });
 
   it('deletes', () => {
-    const c = createChild('Z', null);
+    const c = createChild('Z');
     expect(deleteChild(c.id)).toBe(true);
     expect(listChildren().length).toBe(0);
   });

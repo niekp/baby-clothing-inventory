@@ -31,6 +31,18 @@ export const MIGRATIONS: Migration[] = [
          WHERE json_valid(ai_suggestions) AND json_extract(ai_suggestions, '$.type') = 'shirt/top'`
       ).run();
     }
+  },
+  {
+    // child.current_size ging van één maat naar een lijst (JSON-array), zodat een
+    // kind dat 'tussen maten' zit er meerdere kan hebben. Zet bestaande kale-string
+    // waarden om naar een JSON-array (NULL blijft NULL → lege lijst in code).
+    name: 'child-size-to-json-array',
+    up: (db) => {
+      db.prepare(
+        `UPDATE child SET current_size = json_array(current_size)
+         WHERE current_size IS NOT NULL AND substr(current_size, 1, 1) <> '['`
+      ).run();
+    }
   }
 ];
 

@@ -77,8 +77,9 @@
   let childMarkers = $derived.by(() => {
     const m = new Map<string, string[]>();
     for (const c of data.children) {
-      if (!c.current_size) continue;
-      m.set(c.current_size, [...(m.get(c.current_size) ?? []), c.name]);
+      for (const size of c.current_sizes) {
+        m.set(size, [...(m.get(size) ?? []), c.name]);
+      }
     }
     return m;
   });
