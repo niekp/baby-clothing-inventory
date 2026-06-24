@@ -10,10 +10,22 @@ export function isSize(s: string): boolean {
 export function isSeason(s: string): boolean {
   return (SEASONS as readonly string[]).includes(s);
 }
+export function isType(s: string): boolean {
+  return (TYPES as readonly string[]).includes(s);
+}
+export function isLength(s: string): boolean {
+  return (LENGTHS as readonly string[]).includes(s);
+}
+export function isQuality(s: string): boolean {
+  return (QUALITIES as readonly string[]).includes(s);
+}
+export function isColor(s: string): boolean {
+  return (COLORS as readonly string[]).includes(s);
+}
 
 export const TYPES = [
   'romper',
-  'body',
+  'boxpak',
   'broek',
   'shirt/top',
   'trui',
@@ -31,6 +43,23 @@ export const LENGTHS = ['lang', 'kort', 'nvt'] as const;
 export const SEASONS = ['zomer', 'winter', 'tussenseizoen', 'allseason'] as const;
 
 export const QUALITIES = ['nieuw', 'goed', 'versleten'] as const;
+
+// Vaste kleur-opties (AI mapt hierop; ook bruikbaar voor filters/swatches).
+export const COLORS = [
+  'wit',
+  'zwart',
+  'grijs',
+  'beige',
+  'bruin',
+  'rood',
+  'oranje',
+  'geel',
+  'groen',
+  'blauw',
+  'paars',
+  'roze',
+  'multicolor'
+] as const;
 
 export const AI_STATUSES = ['none', 'processing', 'working', 'suggested', 'done', 'failed'] as const;
 

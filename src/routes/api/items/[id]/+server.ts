@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { deleteItem, getItem, updateItem } from '$lib/server/db';
 import { deletePhotos } from '$lib/server/photos';
 import { serializeItem } from '$lib/server/serialize';
-import { AI_STATUSES, isSeason, SIZES } from '$lib/config';
+import { AI_STATUSES, isLength, isQuality, isSeason, isType, SIZES } from '$lib/config';
 import type { Item } from '$lib/types';
 
 const SIZE_SET = new Set(SIZES.map(String));
@@ -33,8 +33,21 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
   }
   const patch: Partial<Item> = {};
 
-  for (const k of ['type', 'length', 'quality', 'color', 'note'] as const) {
+  // vrije-tekstvelden
+  for (const k of ['color', 'note'] as const) {
     if (k in body) patch[k] = body[k] == null ? null : String(body[k]);
+  }
+  // enum-velden: alleen geldige opties (of null om te wissen)
+  const ENUM_CHECK = { type: isType, length: isLength, quality: isQuality } as const;
+  for (const k of ['type', 'length', 'quality'] as const) {
+    if (!(k in body)) continue;
+    if (body[k] == null) {
+      patch[k] = null;
+      continue;
+    }
+    const v = String(body[k]);
+    if (!ENUM_CHECK[k](v)) error(400, `Ongeldige ${k}`);
+    patch[k] = v;
   }
   // seizoenen: array van geldige waarden → JSON in de season-kolom (of null)
   if ('seasons' in body) {

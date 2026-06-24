@@ -4,7 +4,7 @@ import { createItem, deleteItem, queryItems, updateItem } from '$lib/server/db';
 import { deletePhotos, extForMime, savePhoto } from '$lib/server/photos';
 import { serializeItem } from '$lib/server/serialize';
 import { parseItemFilters } from '$lib/filters';
-import { isSeason, SIZES } from '$lib/config';
+import { isLength, isQuality, isSeason, isType, SIZES } from '$lib/config';
 import type { ItemInput } from '$lib/types';
 
 const SIZE_SET = new Set(SIZES.map(String));
@@ -12,6 +12,11 @@ const SIZE_SET = new Set(SIZES.map(String));
 function str(form: FormData, key: string): string | undefined {
   const v = form.get(key);
   return typeof v === 'string' && v.trim() !== '' ? v.trim() : undefined;
+}
+
+// Vrije waarde → alleen behouden als 't een geldige optie is, anders null.
+function opt(v: string | undefined, ok: (s: string) => boolean): string | null {
+  return v && ok(v) ? v : null;
 }
 
 export const GET: RequestHandler = ({ url }) => {
@@ -37,10 +42,10 @@ export const POST: RequestHandler = async ({ request }) => {
 
   const input: ItemInput = {
     size,
-    type: str(form, 'type') ?? null,
-    length: str(form, 'length') ?? null,
+    type: opt(str(form, 'type'), isType),
+    length: opt(str(form, 'length'), isLength),
     seasons,
-    quality: str(form, 'quality') ?? null,
+    quality: opt(str(form, 'quality'), isQuality),
     color: str(form, 'color') ?? null,
     note: str(form, 'note') ?? null,
     favorite: str(form, 'favorite') === '1' ? 1 : 0,

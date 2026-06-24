@@ -6,6 +6,7 @@ import {
   sweepStuckWorking,
   updateItem
 } from './db';
+import sharp from 'sharp';
 import { readPhoto, saveCutout } from './photos';
 import { tagImage } from './ollama';
 import { cutout } from './rembg';
@@ -34,7 +35,9 @@ export async function processOne(): Promise<boolean> {
   // 1) tagging — schrijf het resultaat alleen weg als 't item nog 'working' is
   // (de gebruiker kan 't ondertussen handmatig hebben afgehandeld → niet overschrijven).
   try {
-    const suggestions = await tagImage(Buffer.from(file.data).toString('base64'));
+    // ollama's vision-decoder (llama.cpp mtmd) leest geen WebP → forceer JPEG
+    const jpeg = await sharp(Buffer.from(file.data)).jpeg({ quality: 90 }).toBuffer();
+    const suggestions = await tagImage(jpeg.toString('base64'));
     if (!finishTagging(item.id, JSON.stringify(suggestions))) {
       console.info(`[worker] item ${item.id} ondertussen handmatig afgehandeld — AI-resultaat genegeerd`);
     }

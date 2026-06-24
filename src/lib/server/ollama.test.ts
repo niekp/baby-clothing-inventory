@@ -6,10 +6,10 @@ const cfg = { url: 'http://ollama:11434', model: 'moondream', threads: 2 };
 afterEach(() => vi.unstubAllGlobals());
 
 describe('tagImage', () => {
-  it('sends a vision request and parses normalized suggestions', async () => {
+  it('maps English options to Dutch app values', async () => {
     const fetchMock = vi.fn(async () =>
       new Response(
-        JSON.stringify({ response: '{"type":"Broek","color":"Blauw","length":"lang","season":"zomer"}' }),
+        JSON.stringify({ response: '{"type":"Trousers","color":"Blue","length":"long","season":"summer"}' }),
         { status: 200 }
       )
     );
@@ -23,16 +23,17 @@ describe('tagImage', () => {
     expect(url).toBe('http://ollama:11434/api/generate');
     const body = JSON.parse(init.body as string);
     expect(body.model).toBe('moondream');
-    expect(body.format).toBe('json');
+    expect(body.format.type).toBe('object'); // JSON-schema (structured output)
+    expect(body.format.properties.type.enum).toContain('trousers');
     expect(body.keep_alive).toBe(0);
     expect(body.images).toEqual(['BASE64']);
     expect(body.options.num_thread).toBe(2);
   });
 
-  it('drops empty/unknown fields', async () => {
+  it('drops unknown/unmappable fields', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn(async () => new Response(JSON.stringify({ response: '{"type":"jurk","color":"","length":"onbekend"}' }), { status: 200 }))
+      vi.fn(async () => new Response(JSON.stringify({ response: '{"type":"dress","color":"","length":"weird"}' }), { status: 200 }))
     );
     const out = await tagImage('B', cfg);
     expect(out).toEqual({ type: 'jurk', color: undefined, length: undefined, season: undefined });

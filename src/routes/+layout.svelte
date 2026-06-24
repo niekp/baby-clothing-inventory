@@ -28,11 +28,12 @@
   .shell {
     display: flex;
     flex-direction: column; /* main boven, nav onderaan (= DOM-volgorde) */
-    min-height: 100vh;
-    min-height: 100dvh;
+    height: 100vh;
+    height: 100dvh; /* vaste hoogte: main scrolt intern, nav blijft onderaan staan */
   }
   main {
     flex: 1;
+    min-height: 0; /* sta toe dat main krimpt zodat overflow-scroll pakt (i.p.v. nav wegduwen) */
     overflow-y: auto;
     padding: var(--space-4);
   }
