@@ -8,7 +8,7 @@ import {
 } from './db';
 import sharp from 'sharp';
 import { readPhoto, saveCutout } from './photos';
-import { tagImage } from './ollama';
+import { tagImage } from './ai';
 import { cutout } from './rembg';
 
 const IDLE_MS = Number(process.env.WORKER_IDLE_MS ?? 3000);

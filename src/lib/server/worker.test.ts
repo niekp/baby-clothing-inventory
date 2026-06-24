@@ -4,9 +4,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 
-// ollama gemockt zodat de worker zonder netwerk testbaar is
-vi.mock('./ollama', () => ({ tagImage: vi.fn() }));
-import { tagImage } from './ollama';
+// AI-tagging gemockt zodat de worker zonder netwerk testbaar is
+vi.mock('./ai', () => ({ tagImage: vi.fn() }));
+import { tagImage } from './ai';
 import { createDb, createItem, getItem, setDbForTesting, updateItem, type DB } from './db';
 import { savePhoto } from './photos';
 import { processOne } from './worker';
@@ -50,7 +50,7 @@ describe('processOne', () => {
     expect(JSON.parse(item.ai_suggestions!)).toEqual({ type: 'broek', color: 'groen' });
   });
 
-  it('marks failed when ollama throws', async () => {
+  it('marks failed when tagging throws', async () => {
     const id = await itemWithPhoto();
     vi.mocked(tagImage).mockRejectedValue(new Error('boom'));
     await processOne();
