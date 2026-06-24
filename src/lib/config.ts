@@ -66,7 +66,7 @@ export const TYPES = [
   'romper',
   'boxpak',
   'broek',
-  'shirt/top',
+  'shirt',
   'trui',
   'jurk',
   'rok',

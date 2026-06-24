@@ -20,7 +20,7 @@ const TYPE_MAP: Record<string, string> = {
   onesie: 'romper',
   playsuit: 'boxpak',
   trousers: 'broek',
-  shirt: 'shirt/top',
+  shirt: 'shirt',
   sweater: 'trui',
   dress: 'jurk',
   skirt: 'rok',

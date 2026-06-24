@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import Database from 'better-sqlite3';
 import { MIGRATIONS, runMigrations } from './migrations';
 
+const SCHEMA =
+  'CREATE TABLE item (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, season TEXT, ai_suggestions TEXT)';
+
 describe('runMigrations', () => {
   it('converts legacy bare-string season to a JSON array, leaves JSON/NULL alone', () => {
     const db = new Database(':memory:');
-    db.exec('CREATE TABLE item (id INTEGER PRIMARY KEY AUTOINCREMENT, season TEXT)');
+    db.exec(SCHEMA);
     db.prepare("INSERT INTO item (season) VALUES ('zomer')").run();
     db.prepare(`INSERT INTO item (season) VALUES ('["winter"]')`).run();
     db.prepare('INSERT INTO item (season) VALUES (NULL)').run();
@@ -22,9 +25,26 @@ describe('runMigrations', () => {
     expect(db.pragma('user_version', { simple: true })).toBe(MIGRATIONS.length);
   });
 
+  it("hernoemt type 'shirt/top' naar 'shirt' (item + suggestie-JSON)", () => {
+    const db = new Database(':memory:');
+    db.exec(SCHEMA);
+    db.prepare("INSERT INTO item (type, ai_suggestions) VALUES ('shirt/top', '{\"type\":\"shirt/top\",\"color\":\"blauw\"}')").run();
+    db.prepare("INSERT INTO item (type, ai_suggestions) VALUES ('broek', NULL)").run();
+
+    runMigrations(db);
+
+    const rows = db.prepare('SELECT type, ai_suggestions FROM item ORDER BY id').all() as {
+      type: string;
+      ai_suggestions: string | null;
+    }[];
+    expect(rows[0].type).toBe('shirt');
+    expect(JSON.parse(rows[0].ai_suggestions!).type).toBe('shirt');
+    expect(rows[1].type).toBe('broek'); // ongemoeid
+  });
+
   it('is idempotent — a second run applies nothing', () => {
     const db = new Database(':memory:');
-    db.exec('CREATE TABLE item (id INTEGER PRIMARY KEY AUTOINCREMENT, season TEXT)');
+    db.exec(SCHEMA);
     runMigrations(db);
     expect(runMigrations(db)).toBe(0);
   });

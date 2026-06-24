@@ -19,6 +19,18 @@ export const MIGRATIONS: Migration[] = [
          WHERE season IS NOT NULL AND substr(season, 1, 1) <> '['`
       ).run();
     }
+  },
+  {
+    // type-optie 'shirt/top' hernoemd naar 'shirt'. Zet bestaande items + de
+    // AI-suggestie-JSON om.
+    name: 'rename-shirt-top',
+    up: (db) => {
+      db.prepare(`UPDATE item SET type = 'shirt' WHERE type = 'shirt/top'`).run();
+      db.prepare(
+        `UPDATE item SET ai_suggestions = json_set(ai_suggestions, '$.type', 'shirt')
+         WHERE json_valid(ai_suggestions) AND json_extract(ai_suggestions, '$.type') = 'shirt/top'`
+      ).run();
+    }
   }
 ];
 
