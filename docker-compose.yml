@@ -11,6 +11,7 @@ services:
     environment:
       HOST: 0.0.0.0             # adapter-node bindt anders op 127.0.0.1
       PORT: ${PORT:-28871}
+      BODY_SIZE_LIMIT: ${BODY_SIZE_LIMIT:-25M}   # default 512K is te klein voor 3000px-foto's
       AI_PROVIDER: ${AI_PROVIDER:-ollama}              # 'openrouter' of 'ollama'
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
       OPENROUTER_MODEL: ${OPENROUTER_MODEL:-google/gemini-2.5-flash-lite}
