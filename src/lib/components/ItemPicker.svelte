@@ -1,5 +1,6 @@
 <script lang="ts">
   import Chip from './Chip.svelte';
+  import Icon from './Icon.svelte';
   import type { ItemDTO } from '$lib/server/serialize';
   import { SIZE_STRINGS } from '$lib/config';
 
@@ -32,7 +33,7 @@
           {#if thumb}
             <img src={thumb} alt="" />
           {:else}
-            <span class="ph">👕</span>
+            <span class="ph"><Icon name="shirt" size={28} /></span>
           {/if}
           <span class="sz">{item.size}</span>
         </button>

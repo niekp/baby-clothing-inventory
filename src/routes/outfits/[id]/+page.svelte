@@ -2,6 +2,7 @@
   import { goto } from '$app/navigation';
   import OutfitCanvas from '$lib/components/OutfitCanvas.svelte';
   import Button from '$lib/components/Button.svelte';
+  import Icon from '$lib/components/Icon.svelte';
   import { outfitItemsToPlaced } from '$lib/client/outfit-placed';
   import type { PageData } from './$types';
 
@@ -21,7 +22,7 @@
 </script>
 
 <header class="bar">
-  <a href="/outfits" class="back" aria-label="Terug">←</a>
+  <a href="/outfits" class="back" aria-label="Terug"><Icon name="arrow-left" size={22} /></a>
   <h1>{data.outfit.name}</h1>
 </header>
 
@@ -34,8 +35,10 @@
 {/if}
 
 <div class="actions">
-  <Button variant="ghost" href={`/outfits/${data.outfit.id}/edit`}>✎ Bewerken</Button>
-  <Button variant="danger" onclick={del}>🗑 Verwijderen</Button>
+  <Button variant="ghost" href={`/outfits/${data.outfit.id}/edit`}
+    ><Icon name="pencil" size={16} /> Bewerken</Button
+  >
+  <Button variant="danger" onclick={del}><Icon name="trash" size={16} /> Verwijderen</Button>
 </div>
 
 <style>

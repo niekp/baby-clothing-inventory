@@ -4,6 +4,7 @@
   import OutfitCanvas from './OutfitCanvas.svelte';
   import ItemPicker from './ItemPicker.svelte';
   import Button from './Button.svelte';
+  import Icon from './Icon.svelte';
   import { W, H, type Placed } from '$lib/client/outfit-canvas-space';
   import { renderOutfitThumb } from '$lib/client/outfit-thumb';
   import type { ItemDTO } from '$lib/server/serialize';
@@ -108,7 +109,7 @@
 </script>
 
 <header class="bar">
-  <a href="/outfits" class="back" aria-label="Terug">←</a>
+  <a href="/outfits" class="back" aria-label="Terug"><Icon name="arrow-left" size={22} /></a>
   <input class="input name" placeholder="Naam outfit" bind:value={name} aria-label="Naam" />
   <Button variant="primary" disabled={!name.trim() || placed.length === 0 || saving} onclick={save}>
     {saving ? '…' : 'Opslaan'}
@@ -121,9 +122,9 @@
 
 {#if selectedKey != null}
   <div class="tools">
-    <Button variant="ghost" onclick={bringFront}>⬆ Voor</Button>
-    <Button variant="ghost" onclick={sendBack}>⬇ Achter</Button>
-    <Button variant="danger" onclick={removeSelected}>🗑 Verwijder</Button>
+    <Button variant="ghost" onclick={bringFront}><Icon name="arrow-up" size={16} /> Voor</Button>
+    <Button variant="ghost" onclick={sendBack}><Icon name="arrow-down" size={16} /> Achter</Button>
+    <Button variant="danger" onclick={removeSelected}><Icon name="trash" size={16} /> Verwijder</Button>
   </div>
 {/if}
 

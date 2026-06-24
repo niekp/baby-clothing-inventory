@@ -1,12 +1,13 @@
 <script lang="ts">
   import { page } from '$app/state';
+  import Icon, { type IconName } from './Icon.svelte';
 
-  const tabs = [
-    { href: '/', label: 'Kast', icon: '👕' },
-    { href: '/outfits', label: 'Outfits', icon: '🧩' },
-    { href: '/scan', label: 'Scan', icon: '📸', primary: true },
-    { href: '/stats', label: 'Cijfers', icon: '📊' },
-    { href: '/settings', label: 'Instellingen', icon: '⚙️' }
+  const tabs: { href: string; label: string; icon: IconName; primary?: boolean }[] = [
+    { href: '/', label: 'Kast', icon: 'shirt' },
+    { href: '/outfits', label: 'Outfits', icon: 'shapes' },
+    { href: '/scan', label: 'Scan', icon: 'camera', primary: true },
+    { href: '/stats', label: 'Cijfers', icon: 'chart' },
+    { href: '/settings', label: 'Instellingen', icon: 'settings' }
   ];
 
   function isActive(href: string): boolean {
@@ -24,7 +25,7 @@
       class:primary={tab.primary}
       aria-current={isActive(tab.href) ? 'page' : undefined}
     >
-      <span class="icon">{tab.icon}</span>
+      <span class="icon"><Icon name={tab.icon} size={24} /></span>
       <span class="label">{tab.label}</span>
     </a>
   {/each}

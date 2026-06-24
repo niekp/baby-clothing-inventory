@@ -3,6 +3,7 @@
   import ItemGrid from '$lib/components/ItemGrid.svelte';
   import FilterSheet from '$lib/components/FilterSheet.svelte';
   import Button from '$lib/components/Button.svelte';
+  import Icon from '$lib/components/Icon.svelte';
   import { buildItemQuery } from '$lib/filters';
   import type { ItemFilters } from '$lib/types';
   import type { PageData } from './$types';
@@ -56,7 +57,7 @@
       }
     }
     if (f.favorite)
-      chips.push({ key: 'favorite', label: '❤︎ favoriet', remove: () => navigate({ ...f, favorite: undefined }) });
+      chips.push({ key: 'favorite', label: 'favoriet', remove: () => navigate({ ...f, favorite: undefined }) });
     if (f.search)
       chips.push({ key: 'search', label: `"${f.search}"`, remove: () => navigate({ ...f, search: undefined }) });
     return chips;
@@ -79,7 +80,7 @@
   <form class="search" onsubmit={submitSearch}>
     <input class="input" type="search" placeholder="Zoeken…" bind:value={q} aria-label="Zoeken" />
   </form>
-  <Button variant="ghost" onclick={() => (filterOpen = true)}>⚙︎ Filter</Button>
+  <Button variant="ghost" onclick={() => (filterOpen = true)}><Icon name="filter" size={16} /> Filter</Button>
   <Button variant="ghost" onclick={toggleSort}>
     {data.filters.sort === 'size' ? 'Maat' : 'Nieuwste'}
   </Button>
@@ -95,14 +96,14 @@
 
 {#if data.inboxCount > 0}
   <a class="review-banner" href="/review">
-    {data.inboxCount} scan{data.inboxCount === 1 ? '' : 's'} te controleren →
+    {data.inboxCount} scan{data.inboxCount === 1 ? '' : 's'} te controleren <Icon name="arrow-right" size={16} />
   </a>
 {/if}
 
 {#if activeChips.length}
   <div class="active">
     {#each activeChips as chip (chip.key)}
-      <button class="active-chip" onclick={chip.remove}>{chip.label} ✕</button>
+      <button class="active-chip" onclick={chip.remove}>{chip.label} <Icon name="x" size={14} /></button>
     {/each}
   </div>
 {/if}
@@ -110,7 +111,7 @@
 {#if data.items.length === 0}
   <div class="empty">
     <p>Nog geen items{activeChips.length ? ' voor dit filter' : ''}.</p>
-    <Button variant="primary" href="/scan">📸 Scan je eerste stuk</Button>
+    <Button variant="primary" href="/scan"><Icon name="camera" size={18} /> Scan je eerste stuk</Button>
   </div>
 {:else}
   <ItemGrid items={data.items} markers={childMarkers} />

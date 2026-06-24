@@ -1,5 +1,6 @@
 <script lang="ts">
   import Button from '$lib/components/Button.svelte';
+  import Icon from '$lib/components/Icon.svelte';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -7,13 +8,13 @@
 
 <header class="head">
   <h1>Outfits</h1>
-  <Button variant="primary" href="/outfits/new">＋ Nieuwe</Button>
+  <Button variant="primary" href="/outfits/new"><Icon name="plus" size={18} /> Nieuwe</Button>
 </header>
 
 {#if data.outfits.length === 0}
   <div class="empty">
     <p class="muted">Nog geen outfits samengesteld.</p>
-    <Button variant="primary" href="/outfits/new">🧩 Maak je eerste outfit</Button>
+    <Button variant="primary" href="/outfits/new"><Icon name="shapes" size={18} /> Maak je eerste outfit</Button>
   </div>
 {:else}
   <div class="grid">
@@ -23,7 +24,7 @@
           {#if o.thumb_url}
             <img src={o.thumb_url} alt={o.name} loading="lazy" />
           {:else}
-            <span class="ph" aria-hidden="true">🧩</span>
+            <span class="ph" aria-hidden="true"><Icon name="shapes" size={48} /></span>
           {/if}
         </div>
         <span class="name">{o.name}</span>

@@ -5,6 +5,7 @@
   import SizeChips from '$lib/components/SizeChips.svelte';
   import BottomSheet from '$lib/components/BottomSheet.svelte';
   import Button from '$lib/components/Button.svelte';
+  import Icon from '$lib/components/Icon.svelte';
   import { fileToNormalizedJpeg, uploadItem } from '$lib/client/capture';
 
   const SIZE_KEY = 'bci.scan.size';
@@ -175,9 +176,9 @@
   <!-- topbar: steady maat-indicator + sluiten -->
   <div class="topbar">
     <button class="size-pill" onclick={() => (sizeSheetOpen = true)} aria-label="Maat wisselen">
-      Maat {size} ▾
+      Maat {size} <Icon name="chevron-down" size={16} />
     </button>
-    <a class="close" href="/" aria-label="Sluiten">✕</a>
+    <a class="close" href="/" aria-label="Sluiten"><Icon name="x" size={22} /></a>
   </div>
 
   {#if uploadMode}
@@ -206,7 +207,7 @@
         aria-label="Zaklamp"
         class:on={camState.torchOn}
       >
-        🔦
+        <Icon name="flashlight" size={24} />
       </button>
       <button
         class="shutter"
@@ -215,7 +216,7 @@
         aria-label="Foto maken"
       ></button>
       <button class="ctrl" onclick={() => cam?.flip()} disabled={uploadMode} aria-label="Camera draaien">
-        🔄
+        <Icon name="switch-camera" size={24} />
       </button>
     </div>
     <CaptureStrip {captures} onthumb={openThumb} />

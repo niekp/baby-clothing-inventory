@@ -2,6 +2,7 @@
   import Heatmap from '$lib/components/Heatmap.svelte';
   import Chip from '$lib/components/Chip.svelte';
   import Button from '$lib/components/Button.svelte';
+  import Icon from '$lib/components/Icon.svelte';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -26,7 +27,7 @@
 {#if data.total === 0}
   <div class="empty">
     <p class="muted">Nog niets om te tellen.</p>
-    <Button variant="primary" href="/scan">📸 Begin met scannen</Button>
+    <Button variant="primary" href="/scan"><Icon name="camera" size={18} /> Begin met scannen</Button>
   </div>
 {:else}
   <p class="muted total">{data.total} item{data.total === 1 ? '' : 's'} totaal · tik een cel om te filteren</p>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/Button.svelte';
+  import Icon from '$lib/components/Icon.svelte';
   import { SIZES } from '$lib/config';
   import type { PageData } from './$types';
 
@@ -68,7 +69,9 @@
         <option value="">— maat —</option>
         {#each SIZES as s (s)}<option value={String(s)}>{s}</option>{/each}
       </select>
-      <button class="del" onclick={() => removeChild(child.id)} aria-label="Verwijderen">✕</button>
+      <button class="del" onclick={() => removeChild(child.id)} aria-label="Verwijderen"
+        ><Icon name="x" size={18} /></button
+      >
     </div>
   {/each}
 

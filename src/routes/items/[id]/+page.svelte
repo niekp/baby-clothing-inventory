@@ -1,6 +1,7 @@
 <script lang="ts">
   import { goto, invalidateAll } from '$app/navigation';
   import Button from '$lib/components/Button.svelte';
+  import Icon from '$lib/components/Icon.svelte';
   import ItemFields, { type ItemFormValue, blankForm } from '$lib/components/ItemFields.svelte';
   import SuggestionBanner from '$lib/components/SuggestionBanner.svelte';
   import { suggestionPatch } from '$lib/suggestions';
@@ -89,9 +90,9 @@
 
 <div class="detail">
   <header class="bar">
-    <a href="/" class="back" aria-label="Terug">←</a>
+    <a href="/" class="back" aria-label="Terug"><Icon name="arrow-left" size={22} /></a>
     <button class="fav" class:on={data.item.favorite} onclick={toggleFav} aria-label="Favoriet">
-      {data.item.favorite ? '❤︎' : '♡'}
+      <Icon name="heart" size={24} fill={!!data.item.favorite} />
     </button>
   </header>
 
@@ -99,7 +100,7 @@
     {#if data.item.display_url}
       <img src={data.item.display_url} alt={data.item.type ?? 'kledingstuk'} />
     {:else}
-      <div class="ph">👕</div>
+      <div class="ph"><Icon name="shirt" size={64} /></div>
     {/if}
   </button>
 
@@ -144,7 +145,7 @@
     {#if data.item.display_url}<img src={data.item.display_url} alt="" />{/if}
     {#if data.item.orig_download_url}
       <a class="zoom-dl" href={data.item.orig_download_url} download onclick={(e) => e.stopPropagation()}>
-        ⬇︎ Origineel
+        <Icon name="download" size={16} /> Origineel
       </a>
     {/if}
   </div>
@@ -240,6 +241,9 @@
     bottom: calc(env(safe-area-inset-bottom) + var(--space-4));
     left: 50%;
     transform: translateX(-50%);
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
     background: rgba(255, 255, 255, 0.18);
     color: #fff;
     padding: var(--space-3) var(--space-4);

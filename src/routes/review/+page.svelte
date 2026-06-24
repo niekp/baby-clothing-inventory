@@ -3,6 +3,7 @@
   import { invalidateAll } from '$app/navigation';
   import ReviewCard from '$lib/components/ReviewCard.svelte';
   import Button from '$lib/components/Button.svelte';
+  import Icon from '$lib/components/Icon.svelte';
   import type { ItemFormValue } from '$lib/components/ItemFields.svelte';
   import type { ItemDTO } from '$lib/server/serialize';
   import type { PageData } from './$types';
@@ -79,7 +80,7 @@
 </script>
 
 <header class="head">
-  <a href="/" class="back" aria-label="Terug">←</a>
+  <a href="/" class="back" aria-label="Terug"><Icon name="arrow-left" size={22} /></a>
   <h1>Review</h1>
   {#if !done && deck.length}<span class="progress">{idx + 1}/{deck.length}</span>{/if}
 </header>
@@ -92,12 +93,12 @@
 
 {#if deck.length === 0}
   <div class="empty">
-    <p class="muted">Niets te reviewen 🎉</p>
+    <p class="muted"><Icon name="check" size={20} /> Niets te reviewen</p>
     <Button variant="primary" href="/">Naar de kast</Button>
   </div>
 {:else if done}
   <div class="empty">
-    <p class="muted">Deck afgerond 🎉</p>
+    <p class="muted"><Icon name="check" size={20} /> Deck afgerond</p>
     {#if newCount > 0}
       <Button variant="primary" onclick={refresh}>Nieuwe items reviewen</Button>
     {:else}

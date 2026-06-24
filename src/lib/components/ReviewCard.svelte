@@ -1,6 +1,7 @@
 <script lang="ts">
   import { untrack } from 'svelte';
   import Button from './Button.svelte';
+  import Icon from './Icon.svelte';
   import ItemFields, { type ItemFormValue } from './ItemFields.svelte';
   import type { ItemDTO } from '$lib/server/serialize';
 
@@ -99,7 +100,7 @@
       {#if item.display_url}
         <img src={item.display_url} alt={item.type ?? 'kledingstuk'} draggable="false" />
       {:else}
-        <div class="ph">👕</div>
+        <div class="ph"><Icon name="shirt" size={64} /></div>
       {/if}
       <span class="size">{item.size}</span>
       {#if hasSuggestion}<span class="ai">AI-suggestie ingevuld</span>{/if}
@@ -108,8 +109,8 @@
 
   <!-- statische indicator-laag onder de foto: blijft zichtbaar tijdens 't slepen -->
   <div class="legend" aria-hidden="true">
-    <span class="dir skip" class:active={dx < -ARM}>← Overslaan</span>
-    <span class="dir save" class:active={dx > ARM}>Opslaan →</span>
+    <span class="dir skip" class:active={dx < -ARM}><Icon name="arrow-left" size={16} /> Overslaan</span>
+    <span class="dir save" class:active={dx > ARM}>Opslaan <Icon name="arrow-right" size={16} /></span>
   </div>
   <p class="hint">Sleep de foto opzij, of gebruik de knoppen onderaan.</p>
   <ItemFields bind:value={form} showNote={false} />
@@ -191,6 +192,9 @@
     font-weight: 600;
   }
   .dir {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
     color: var(--text-muted);
     padding: 2px 8px;
     border-radius: 999px;

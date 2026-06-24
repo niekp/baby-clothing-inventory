@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { ItemDTO } from '$lib/server/serialize';
+  import Icon from './Icon.svelte';
 
   let { item, marker = null }: { item: ItemDTO; marker?: string[] | null } = $props();
 </script>
@@ -9,10 +10,10 @@
     {#if item.display_url}
       <img src={item.display_url} alt={item.type ?? 'kledingstuk'} loading="lazy" />
     {:else}
-      <div class="ph" aria-hidden="true">👕</div>
+      <div class="ph" aria-hidden="true"><Icon name="shirt" size={40} /></div>
     {/if}
     <span class="size">{item.size}</span>
-    {#if item.favorite}<span class="fav" aria-label="favoriet">❤︎</span>{/if}
+    {#if item.favorite}<span class="fav" aria-label="favoriet"><Icon name="heart" size={18} fill /></span>{/if}
     {#if item.ai_status === 'suggested'}<span class="dot" aria-label="te reviewen"></span>{/if}
     {#if marker}<span class="marker" title={`Huidige maat van ${marker.join(', ')}`}>{marker.join(', ')}</span>{/if}
   </div>

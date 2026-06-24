@@ -2,6 +2,7 @@
   import BottomSheet from './BottomSheet.svelte';
   import Chip from './Chip.svelte';
   import Button from './Button.svelte';
+  import Icon from './Icon.svelte';
   import { SIZES, TYPES, LENGTHS, SEASONS, QUALITIES } from '$lib/config';
   import type { Filterset, ItemFilters } from '$lib/types';
 
@@ -154,9 +155,11 @@
             class="set-act"
             class:pinned={fs.pinned}
             aria-label={fs.pinned ? 'Losmaken' : 'Vastpinnen'}
-            onclick={() => togglePin(fs)}>📌</button
+            onclick={() => togglePin(fs)}><Icon name="pin" size={16} /></button
           >
-          <button class="set-act" aria-label="Verwijderen" onclick={() => deleteSet(fs)}>✕</button>
+          <button class="set-act" aria-label="Verwijderen" onclick={() => deleteSet(fs)}
+            ><Icon name="x" size={16} /></button
+          >
         </div>
       {/each}
     </div>

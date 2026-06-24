@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte';
+  import Icon from './Icon.svelte';
 
   let {
     open = $bindable(false),
@@ -76,7 +77,7 @@
     {#if title}
       <header class="sheet-head">
         <h2>{title}</h2>
-        <button class="x" onclick={close} aria-label="Sluiten">✕</button>
+        <button class="x" onclick={close} aria-label="Sluiten"><Icon name="x" size={20} /></button>
       </header>
     {/if}
     <div class="sheet-body">
