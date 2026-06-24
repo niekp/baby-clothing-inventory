@@ -17,5 +17,8 @@ RUN mkdir -p /models \
     && chmod -R a+rX /models
 
 COPY web.py .
+# numba (via pymatting) cachet @njit naast de bron in site-packages; als uid 1000
+# is dat read-only -> "no locator available". Schrijfbare cache-dir lost dit op.
+ENV NUMBA_CACHE_DIR=/tmp/numba-cache
 EXPOSE 28872
 CMD ["uvicorn", "web:app", "--host", "0.0.0.0", "--port", "28872"]
