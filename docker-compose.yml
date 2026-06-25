@@ -22,7 +22,7 @@ services:
       TZ: ${TZ:-Europe/Amsterdam}
     depends_on:
       rembg:
-        condition: service_healthy   # app start pas als de sidecar /embed aankan (geen cold-start race)
+        condition: service_started   # niet wachten op 'healthy' (rembg-imports ~30s); embed/cutout falen zacht tot de sidecar er is
     networks:
       - default                 # app <-> rembg-sidecar (zelfde compose)
       - ollama-net              # app -> ollama
