@@ -124,10 +124,9 @@
   </div>
 
   <div class="extra">
-    {#if data.item.orig_download_url}
-      <a class="dl" href={data.item.orig_download_url} download>Origineel downloaden</a>
-    {/if}
-    <Button variant="danger" onclick={del}>Verwijderen</Button>
+    <button class="del" onclick={del}>
+      <Icon name="trash" size={16} /> Verwijderen
+    </button>
   </div>
 </div>
 
@@ -211,15 +210,21 @@
   }
   .extra {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-3);
-    margin-top: var(--space-4);
+    justify-content: flex-end;
+    margin-top: var(--space-5);
   }
-  .dl {
-    color: var(--accent);
+  .del {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    background: none;
+    border: none;
+    color: var(--text-muted);
     font-size: var(--fs-sm);
-    text-decoration: underline;
+    padding: var(--space-2);
+  }
+  .del:hover {
+    color: var(--danger);
   }
   .zoom {
     position: fixed;
