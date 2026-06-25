@@ -1,9 +1,13 @@
 import { listEmbeddings, listDismissedPairs } from './db';
+import { histIntersection } from './colorhist';
 import { expandSize } from '$lib/config';
 
-// Cosine-drempel voor "waarschijnlijk hetzelfde stuk" (tunable). Vectoren zijn
-// L2-genormaliseerd → dot product = cosine.
+// Een paar is alleen kandidaat als ZOWEL de vorm/categorie (CLIP-cosine) áls de
+// kleur (histogram-overlap) genoeg matchen. CLIP alleen verwart gelijk-gevormde
+// stukken van verschillende kleur; de kleur-gate dempt dat (empirisch: vals paar
+// kleur-overlap ~0.10, zelfde stuk ~0.87+). Beide tunable.
 const THRESHOLD = Number(process.env.DUP_THRESHOLD ?? 0.9);
+const COLOR_MIN = Number(process.env.DUP_COLOR_MIN ?? 0.4);
 
 export interface DuplicatePair {
   a: number; // a < b (canoniek)
@@ -38,6 +42,7 @@ export function findDuplicatePairs(threshold = THRESHOLD): DuplicatePair[] {
       if (!sizesOverlap(ri.size, rj.size)) continue;
       const score = cosine(ri.embedding, rj.embedding);
       if (score < threshold) continue;
+      if (histIntersection(ri.colorHist, rj.colorHist) < COLOR_MIN) continue; // kleur-gate
       const [a, b] = ri.id < rj.id ? [ri.id, rj.id] : [rj.id, ri.id];
       if (dismissed.has(`${a}:${b}`)) continue;
       pairs.push({ a, b, score, sameType: !!ri.type && ri.type === rj.type });

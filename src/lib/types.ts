@@ -26,6 +26,7 @@ export interface Item {
   cutout_status: CutoutStatus;
   created_at: string;
   embedding?: Buffer | null; // CLIP-vector (BLOB); server-only, niet naar de client
+  color_hist?: Buffer | null; // kleur-histogram (BLOB); server-only
 }
 
 export interface Child {

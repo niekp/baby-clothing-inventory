@@ -54,6 +54,17 @@ export const MIGRATIONS: Migration[] = [
         db.prepare('ALTER TABLE item ADD COLUMN embedding BLOB').run();
       }
     }
+  },
+  {
+    // item.color_hist: kleur-histogram (BLOB) naast de CLIP-embedding voor de
+    // dubbel-detectie (kleur-gate). Guarded ALTER.
+    name: 'add-item-color-hist',
+    up: (db) => {
+      const cols = db.prepare('PRAGMA table_info(item)').all() as { name: string }[];
+      if (!cols.some((c) => c.name === 'color_hist')) {
+        db.prepare('ALTER TABLE item ADD COLUMN color_hist BLOB').run();
+      }
+    }
   }
 ];
 

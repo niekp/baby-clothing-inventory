@@ -364,6 +364,7 @@ export interface EmbeddingRow {
   size: string;
   type: string | null;
   embedding: Float32Array;
+  colorHist: Float32Array;
 }
 
 // SQLite-BLOB → Float32Array (dichte kopie: byteOffset is niet gegarandeerd 4-aligned).
@@ -372,33 +373,45 @@ function bufToFloat32(buf: Buffer): Float32Array {
   return new Float32Array(copy.buffer, 0, Math.floor(copy.byteLength / 4));
 }
 
-export function setEmbedding(id: number, vec: Float32Array): void {
-  const blob = Buffer.from(vec.buffer, vec.byteOffset, vec.byteLength);
-  getDb().prepare('UPDATE item SET embedding = ? WHERE id = ?').run(blob, id);
+function f32ToBlob(vec: Float32Array): Buffer {
+  return Buffer.from(vec.buffer, vec.byteOffset, vec.byteLength);
 }
 
+// Schrijft embedding + kleur-histogram samen (atomisch: beide of geen van beide).
+export function setEmbedding(id: number, vec: Float32Array, colorHist: Float32Array | null): void {
+  getDb()
+    .prepare('UPDATE item SET embedding = ?, color_hist = ? WHERE id = ?')
+    .run(f32ToBlob(vec), colorHist ? f32ToBlob(colorHist) : null, id);
+}
+
+// Items met embedding én kleur-histogram (klaar voor dubbel-detectie).
 export function listEmbeddings(): EmbeddingRow[] {
   const rows = getDb()
-    .prepare('SELECT id, size, type, embedding FROM item WHERE embedding IS NOT NULL')
-    .all() as { id: number; size: string; type: string | null; embedding: Buffer }[];
-  return rows.map((r) => ({ id: r.id, size: r.size, type: r.type, embedding: bufToFloat32(r.embedding) }));
+    .prepare(
+      'SELECT id, size, type, embedding, color_hist FROM item WHERE embedding IS NOT NULL AND color_hist IS NOT NULL'
+    )
+    .all() as { id: number; size: string; type: string | null; embedding: Buffer; color_hist: Buffer }[];
+  return rows.map((r) => ({
+    id: r.id,
+    size: r.size,
+    type: r.type,
+    embedding: bufToFloat32(r.embedding),
+    colorHist: bufToFloat32(r.color_hist)
+  }));
 }
 
-// Items mét cutout maar zonder embedding (backfill-kandidaten).
+// Items mét cutout die nog embedding of kleur-histogram missen (backfill-kandidaten).
+const MISSING_WHERE =
+  'cutout_path IS NOT NULL AND (embedding IS NULL OR color_hist IS NULL)';
+
 export function itemsMissingEmbedding(): number[] {
   return (
-    getDb()
-      .prepare('SELECT id FROM item WHERE embedding IS NULL AND cutout_path IS NOT NULL ORDER BY id')
-      .all() as { id: number }[]
+    getDb().prepare(`SELECT id FROM item WHERE ${MISSING_WHERE} ORDER BY id`).all() as { id: number }[]
   ).map((r) => r.id);
 }
 
 export function countMissingEmbedding(): number {
-  return (
-    getDb()
-      .prepare('SELECT COUNT(*) AS n FROM item WHERE embedding IS NULL AND cutout_path IS NOT NULL')
-      .get() as { n: number }
-  ).n;
+  return (getDb().prepare(`SELECT COUNT(*) AS n FROM item WHERE ${MISSING_WHERE}`).get() as { n: number }).n;
 }
 
 // --- afgewezen dubbel-paren (canoniek a<b) ---

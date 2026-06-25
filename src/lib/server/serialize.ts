@@ -51,9 +51,10 @@ export function serializeItem(item: Item): ItemDTO {
       suggestions = null;
     }
   }
-  // embedding (BLOB) niet meesturen: groot en nutteloos voor de client
-  const { embedding, ...rest } = item;
+  // BLOB-velden (embedding/kleur-histogram) niet meesturen: groot en nutteloos voor de client
+  const { embedding, color_hist, ...rest } = item;
   void embedding;
+  void color_hist;
   return {
     ...rest,
     display_url: photoUrl('disp', item.photo_display),

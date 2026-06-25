@@ -12,6 +12,7 @@ import sharp from 'sharp';
 import { readPhoto, saveCutout } from './photos';
 import { tagImage } from './ai';
 import { cutout, embed } from './rembg';
+import { colorHistogram } from './colorhist';
 
 const IDLE_MS = Number(process.env.WORKER_IDLE_MS ?? 3000);
 
@@ -48,8 +49,8 @@ export async function processOne(): Promise<boolean> {
       .flatten({ background: '#ffffff' })
       .jpeg({ quality: 90 })
       .toBuffer();
-    // embedding op dezelfde schone foto (dubbel-detectie); niet-fataal voor tagging
-    await embedItem(item.id, jpeg);
+    // embedding + kleur-histogram (dubbel-detectie); niet-fataal voor tagging
+    await embedItem(item.id, jpeg, cut);
     const suggestions = await tagImage(jpeg.toString('base64'));
     if (!finishTagging(item.id, JSON.stringify(suggestions))) {
       console.info(`[worker] item ${item.id} ondertussen handmatig afgehandeld — AI-resultaat genegeerd`);
@@ -91,11 +92,18 @@ export async function generateCutout(
 
 // Berekent + bewaart de CLIP-embedding van een item. Niet-fataal: een fout hier
 // mag de tagging niet breken (vandaar eigen try/catch i.p.v. doorgooien).
-export async function embedItem(id: number, jpeg: Buffer): Promise<boolean> {
+// cutPng: de cutout-PNG (met alpha) voor het kleur-histogram; null → geen histogram
+// (item telt dan niet mee in de dubbel-detectie).
+export async function embedItem(
+  id: number,
+  jpeg: Buffer,
+  cutPng: Uint8Array | null
+): Promise<boolean> {
   try {
     const vec = await embed(new Uint8Array(jpeg));
+    const hist = cutPng ? await colorHistogram(cutPng) : null;
     if (!getItem(id)) return false; // item ondertussen verwijderd
-    setEmbedding(id, vec);
+    setEmbedding(id, vec, hist);
     return true;
   } catch (e) {
     console.error(`[worker] item ${id} embedding mislukt:`, e);
@@ -114,7 +122,7 @@ export async function backfillEmbeddings(): Promise<{ done: number; failed: numb
       failed++;
       continue;
     }
-    const file = await readPhoto('cutout', item.cutout_path);
+    const file = await readPhoto('cutout', item.cutout_path); // cutout-PNG (met alpha)
     if (!file) {
       failed++;
       continue;
@@ -124,7 +132,8 @@ export async function backfillEmbeddings(): Promise<{ done: number; failed: numb
         .flatten({ background: '#ffffff' })
         .jpeg({ quality: 90 })
         .toBuffer();
-      (await embedItem(id, jpeg)) ? done++ : failed++;
+      // embedding op de afgevlakte foto, kleur-histogram op de cutout (met alpha)
+      (await embedItem(id, jpeg, file.data)) ? done++ : failed++;
     } catch {
       failed++;
     }
