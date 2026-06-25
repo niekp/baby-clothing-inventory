@@ -1,6 +1,6 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { deleteItem, getItem, updateItem } from '$lib/server/db';
+import { deleteItem, getItem, recomputeDuplicatesFor, updateItem } from '$lib/server/db';
 import { deletePhotos } from '$lib/server/photos';
 import { serializeItem } from '$lib/server/serialize';
 import { AI_STATUSES, isLength, isQuality, isSeason, isSize, isType } from '$lib/config';
@@ -22,7 +22,8 @@ export const GET: RequestHandler = ({ params }) => {
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
   const id = parseId(params.id);
-  if (!getItem(id)) error(404, 'Niet gevonden');
+  const before = getItem(id);
+  if (!before) error(404, 'Niet gevonden');
 
   let body: Record<string, unknown>;
   try {
@@ -67,6 +68,7 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
   }
 
   const updated = updateItem(id, patch);
+  if (patch.size && patch.size !== before.size) recomputeDuplicatesFor(id); // maat bepaalt paar-eligibiliteit
   return json(serializeItem(updated!));
 };
 

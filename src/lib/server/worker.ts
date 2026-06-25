@@ -5,6 +5,7 @@ import {
   getItem,
   itemsMissingEmbedding,
   listCutoutItems,
+  rebuildDuplicatePairs,
   setEmbedding,
   sweepStuckWorking,
   updateItem
@@ -178,5 +179,6 @@ export function startWorker(): void {
   if (g.__bciWorkerStarted) return;
   g.__bciWorkerStarted = true;
   sweepStuckWorking(); // vastgelopen 'working' na een crash terug naar 'processing'
+  rebuildDuplicatePairs(); // paren-tabel synchroon met huidige embeddings na (re)start
   void loop();
 }

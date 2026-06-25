@@ -1,5 +1,13 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createDb, createItem, dismissDuplicate, setEmbedding, setDbForTesting, type DB } from './db';
+import {
+  createDb,
+  createItem,
+  deleteItem,
+  dismissDuplicate,
+  setEmbedding,
+  setDbForTesting,
+  type DB
+} from './db';
 import { findDuplicatePairs, duplicateCount } from './duplicates';
 
 let db: DB;
@@ -15,14 +23,34 @@ function emb(theta: number): Float32Array {
 const SAME_COLOR = new Float32Array([1, 0, 0, 0]); // identiek → overlap 1.0
 const OTHER_COLOR = new Float32Array([0, 0, 0, 1]); // geen overlap → 0.0
 
-describe('duplicateCount (gecachet op staat-vingerafdruk)', () => {
-  it('telt paren en ververst zodra de staat wijzigt', () => {
+describe('duplicateCount (incrementeel onderhouden paren-tabel)', () => {
+  it('telt paren en daalt zodra een paar wordt afgewezen', () => {
+    const a = createItem({ size: '74' });
+    const b = createItem({ size: '74' });
+    setEmbedding(a.id, emb(0), SAME_COLOR);
+    setEmbedding(b.id, emb(0.02), SAME_COLOR); // embedding-schrijf maakt het paar meteen aan
+    expect(duplicateCount()).toBe(1);
+    dismissDuplicate(a.id, b.id); // verwijdert het paar uit de tabel
+    expect(duplicateCount()).toBe(0);
+  });
+
+  it('houdt een afgewezen paar onderdrukt na opnieuw embedden', () => {
+    const a = createItem({ size: '74' });
+    const b = createItem({ size: '74' });
+    setEmbedding(a.id, emb(0), SAME_COLOR);
+    setEmbedding(b.id, emb(0.02), SAME_COLOR);
+    dismissDuplicate(a.id, b.id);
+    setEmbedding(b.id, emb(0.02), SAME_COLOR); // recutout/her-embed mag het niet terugbrengen
+    expect(duplicateCount()).toBe(0);
+  });
+
+  it('ruimt paren op als een item verdwijnt (CASCADE)', () => {
     const a = createItem({ size: '74' });
     const b = createItem({ size: '74' });
     setEmbedding(a.id, emb(0), SAME_COLOR);
     setEmbedding(b.id, emb(0.02), SAME_COLOR);
     expect(duplicateCount()).toBe(1);
-    dismissDuplicate(a.id, b.id); // wijzigt de vingerafdruk → herberekend
+    deleteItem(a.id);
     expect(duplicateCount()).toBe(0);
   });
 });
