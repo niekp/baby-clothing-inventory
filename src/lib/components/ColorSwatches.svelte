@@ -13,32 +13,29 @@
       onclick={() => onpick(current === c ? '' : c)}
       aria-pressed={current === c}
       aria-label={c}
+      title={c}
     >
       <span class="dot" class:multi={c === 'multicolor'} style:background={COLOR_HEX[c]}></span>
-      <span class="lbl">{c}</span>
     </button>
   {/each}
 </div>
 
 <style>
   .swatches {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(52px, 1fr));
-    gap: var(--space-2);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-3);
   }
   .sw {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 4px;
     background: none;
     border: none;
-    padding: var(--space-1) 0;
+    padding: 0;
     cursor: pointer;
   }
   .dot {
-    width: 30px;
-    height: 30px;
+    display: block;
+    width: 34px;
+    height: 34px;
     border-radius: 50%;
     box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18); /* rand zodat wit/beige zichtbaar blijft */
   }
@@ -49,13 +46,5 @@
     box-shadow:
       0 0 0 2px var(--surface),
       0 0 0 4px var(--accent); /* accent-ring met gat ertussen */
-  }
-  .lbl {
-    font-size: 11px;
-    color: var(--text-muted);
-  }
-  .sw.selected .lbl {
-    color: var(--text);
-    font-weight: 600;
   }
 </style>
