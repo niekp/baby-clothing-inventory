@@ -10,7 +10,7 @@ import {
   updateItem
 } from './db';
 import sharp from 'sharp';
-import { normalizeCutout, padForCutout, readPhoto, saveCutout } from './photos';
+import { normalizeCutout, readPhoto, saveCutout } from './photos';
 import { tagImage } from './ai';
 import { cutout } from './rembg';
 
@@ -70,7 +70,7 @@ export async function generateCutout(
   model?: string
 ): Promise<Uint8Array | null> {
   try {
-    const png = await cutout(await padForCutout(displayBytes), model);
+    const png = await cutout(displayBytes, model);
     if (!getItem(id)) return null; // item ondertussen verwijderd → geen wees-cutout
     const norm = await normalizeCutout(png).catch(() => png); // uniform vierkant; niet-fataal
     const name = await saveCutout(id, norm);
@@ -87,9 +87,9 @@ export async function generateCutout(
   }
 }
 
-// Cutout-pijplijn-versie: ophogen om alle cutouts eenmalig opnieuw te genereren
-// (bv. na een rembg-/normalisatie-verbetering). 1 = witte-rand-padding (#6).
-const CUTOUT_GEN = 1;
+// Cutout-pijplijn-versie: ophogen om alle cutouts eenmalig opnieuw te genereren.
+// 2 = padding teruggedraaid (gaf vloer-doorslag op lage-contrast foto's).
+const CUTOUT_GEN = 2;
 
 // Eenmalige hergeneratie na een pijplijn-wijziging; versie-gated zoals een migratie,
 // maar async/op de achtergrond (rembg-calls mogen de boot niet blokkeren).
