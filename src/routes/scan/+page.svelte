@@ -12,8 +12,8 @@
   const SIZE_KEY = 'bci.scan.size';
   const CROP_KEY = 'bci.scan.crop';
 
-  // crop-kader: ruim default, onthouden tussen sessies
-  let crop = $state<CropRect>({ x: 0.08, y: 0.06, w: 0.84, h: 0.88 });
+  // hoogteband (volle breedte): ruime default, onthouden tussen sessies
+  let crop = $state<CropRect>({ x: 0, y: 0.08, w: 1, h: 0.84 });
   function saveCrop(r: CropRect) {
     localStorage.setItem(CROP_KEY, JSON.stringify(r));
   }
@@ -49,7 +49,10 @@
     if (saved) size = saved;
     try {
       const c = localStorage.getItem(CROP_KEY);
-      if (c) crop = JSON.parse(c);
+      if (c) {
+        const p = JSON.parse(c);
+        crop = { x: 0, y: p.y, w: 1, h: p.h }; // band: altijd volle breedte
+      }
     } catch {
       /* default crop */
     }
