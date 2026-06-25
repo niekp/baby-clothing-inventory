@@ -118,6 +118,22 @@ export const COLORS = [
   'multicolor'
 ] as const;
 
+// Swatch-kleur per optie; 'multicolor' krijgt een gradient in de UI (geen vaste hex).
+export const COLOR_HEX: Record<string, string> = {
+  wit: '#ffffff',
+  zwart: '#222222',
+  grijs: '#9ca3af',
+  beige: '#e3d2ac',
+  bruin: '#8b5a2b',
+  rood: '#e23b3b',
+  oranje: '#f5912f',
+  geel: '#f4d031',
+  groen: '#3faa57',
+  blauw: '#3b82f6',
+  paars: '#8b5cf6',
+  roze: '#f48fb1'
+};
+
 export const AI_STATUSES = ['none', 'processing', 'working', 'suggested', 'done', 'failed'] as const;
 
 export const CUTOUT_STATUSES = ['none', 'done', 'failed'] as const;

@@ -16,9 +16,10 @@
 
 <script lang="ts">
   import Chip from './Chip.svelte';
+  import ColorSwatches from './ColorSwatches.svelte';
   import Icon from './Icon.svelte';
   import SizeChips from './SizeChips.svelte';
-  import { TYPES, LENGTHS, SEASONS, QUALITIES } from '$lib/config';
+  import { TYPES, LENGTHS, SEASONS, QUALITIES, COLOR_HEX } from '$lib/config';
 
   let {
     value = $bindable(),
@@ -44,10 +45,19 @@
   }
 </script>
 
-{#snippet head(key: string, label: string, val: string)}
+{#snippet head(key: string, label: string, val: string, swatch = false)}
   <button type="button" class="row-head" aria-expanded={openKey === key} onclick={() => toggle(key)}>
     <span class="rl">{label}</span>
-    <span class="rv" class:empty={!val}>{val || '—'}</span>
+    <span class="rv" class:empty={!val}>
+      {#if swatch && val}
+        <span
+          class="cdot"
+          class:multi={val === 'multicolor'}
+          style:background={COLOR_HEX[val]}
+        ></span>
+      {/if}
+      {val || '—'}
+    </span>
     <span class="chev"><Icon name="chevron-down" size={18} /></span>
   </button>
 {/snippet}
@@ -105,9 +115,9 @@
   </div>
 
   <div class="row">
-    {@render head('color', 'Kleur', value.color)}
+    {@render head('color', 'Kleur', value.color, true)}
     {#if openKey === 'color'}
-      <div class="body"><input class="input" bind:value={value.color} placeholder="bv. blauw" /></div>
+      <div class="body"><ColorSwatches current={value.color} onpick={(c) => (value.color = c)} /></div>
     {/if}
   </div>
 
@@ -155,6 +165,18 @@
   }
   .rv.empty {
     color: var(--text-muted);
+  }
+  .cdot {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    vertical-align: -2px;
+    margin-right: 6px;
+    box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.18);
+  }
+  .cdot.multi {
+    background: conic-gradient(#e23b3b, #f4d031, #3faa57, #3b82f6, #8b5cf6, #f48fb1, #e23b3b);
   }
   .chev {
     display: inline-flex;
