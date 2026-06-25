@@ -6,14 +6,15 @@
 
   let {
     item,
-    marker = null,
     stackable = false
-  }: { item: ItemDTO; marker?: string[] | null; stackable?: boolean } = $props();
+  }: { item: ItemDTO; stackable?: boolean } = $props();
 
+  // stapel-modus: kaart-tik = toevoegen i.p.v. navigeren
+  let selecting = $derived(stackable && stack.active);
   let onStack = $derived(stackable && stack.has(item.id));
 </script>
 
-<div class="card" class:marked={marker}>
+<div class="card" class:selected={selecting && onStack}>
   <div class="photo">
     {#if thumbSrc(item)}
       <img
@@ -26,22 +27,21 @@
     {:else}
       <div class="ph" aria-hidden="true"><Icon name="shirt" size={40} /></div>
     {/if}
-    <!-- navigatie als overlay-link; knop/badges liggen er los bovenop -->
-    <a class="link" href={`/items/${item.id}`} aria-label={item.type ?? 'kledingstuk'}></a>
+    <!-- overlay vult de foto: navigatie, of in stapel-modus een toggle -->
+    {#if selecting}
+      <button
+        class="link"
+        onclick={() => stack.toggle(item.id)}
+        aria-pressed={onStack}
+        aria-label={onStack ? 'Van stapel halen' : 'Op stapel leggen'}
+      ></button>
+    {:else}
+      <a class="link" href={`/items/${item.id}`} aria-label={item.type ?? 'kledingstuk'}></a>
+    {/if}
     <span class="size">{item.size}</span>
     <div class="tr">
       {#if item.favorite}<span class="fav" aria-label="favoriet"><Icon name="heart" size={18} fill /></span>{/if}
-      {#if stackable}
-        <button
-          class="stack-btn"
-          class:on={onStack}
-          onclick={() => stack.toggle(item.id)}
-          aria-pressed={onStack}
-          aria-label={onStack ? 'Van stapel halen' : 'Op stapel leggen'}
-        >
-          <Icon name={onStack ? 'check' : 'plus'} size={18} />
-        </button>
-      {/if}
+      {#if selecting && onStack}<span class="check"><Icon name="check" size={18} /></span>{/if}
     </div>
     {#if item.ai_status === 'processing' || item.ai_status === 'working'}
       <span class="status work"><Icon name="loader" size={13} spin /> AI…</span>
@@ -50,7 +50,6 @@
     {:else if item.ai_status === 'failed'}
       <span class="status fail"><Icon name="alert" size={13} /> mislukt</span>
     {/if}
-    {#if marker}<span class="marker" title={`Huidige maat van ${marker.join(', ')}`}>{marker.join(', ')}</span>{/if}
   </div>
 </div>
 
@@ -67,42 +66,30 @@
     border-radius: var(--radius);
     overflow: hidden;
   }
-  .card.marked .photo {
+  .card.selected .photo {
     outline: 3px solid var(--accent);
     outline-offset: -3px;
   }
-  /* overlay-link vult de foto; badges liggen erbovenop maar laten taps door */
+  /* overlay vult de foto; badges liggen erbovenop maar laten taps door */
   .link {
     position: absolute;
     inset: 0;
     z-index: 1;
+    background: none;
+    border: none;
+    padding: 0;
+    cursor: pointer;
   }
   .size,
   .status,
-  .marker,
   .tr {
     z-index: 2;
   }
   .size,
   .status,
-  .marker,
-  .fav {
+  .fav,
+  .check {
     pointer-events: none;
-  }
-  .marker {
-    position: absolute;
-    left: var(--space-2);
-    bottom: var(--space-2);
-    background: var(--accent);
-    color: var(--accent-ink);
-    font-size: 11px;
-    font-weight: 600;
-    padding: 2px 6px;
-    border-radius: 999px;
-    max-width: calc(100% - 16px);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   .photo img {
     width: 100%;
@@ -147,21 +134,13 @@
     font-size: 18px;
     text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
   }
-  .stack-btn {
+  .check {
     display: flex;
     align-items: center;
     justify-content: center;
     width: 32px;
     height: 32px;
     border-radius: 50%;
-    border: none;
-    background: rgba(0, 0, 0, 0.6);
-    color: #fff;
-    padding: 0;
-    pointer-events: auto;
-    cursor: pointer;
-  }
-  .stack-btn.on {
     background: var(--accent);
     color: var(--accent-ink);
   }

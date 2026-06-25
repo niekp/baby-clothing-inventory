@@ -15,6 +15,7 @@ function read(): number[] {
 }
 
 let ids = $state<number[]>(read());
+let active = $state(false); // 'stapel-modus': kaart-tik = toevoegen i.p.v. navigeren
 
 function save() {
   if (typeof localStorage === 'undefined') return;
@@ -31,6 +32,12 @@ export const stack = {
   },
   get count() {
     return ids.length;
+  },
+  get active() {
+    return active;
+  },
+  setActive(v: boolean) {
+    active = v;
   },
   has(id: number) {
     return ids.includes(id);

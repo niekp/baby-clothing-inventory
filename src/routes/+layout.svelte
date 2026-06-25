@@ -3,10 +3,29 @@
   import '$lib/styles/global.css';
   import NavBar from '$lib/components/NavBar.svelte';
   import { page } from '$app/state';
+  import { afterNavigate, beforeNavigate } from '$app/navigation';
   import { onMount } from 'svelte';
   import type { Snippet } from 'svelte';
 
   let { children }: { children: Snippet } = $props();
+
+  // Scrolpositie van de interne scroll-container (main) bewaren/herstellen.
+  // SvelteKit herstelt alleen window-scroll; main scrolt zelf (overflow-y:auto).
+  let mainEl = $state<HTMLElement>();
+  const scrollPos = new Map<string, number>();
+  const navKey = (u: URL) => u.pathname + u.search;
+
+  beforeNavigate((nav) => {
+    if (mainEl && nav.from) scrollPos.set(navKey(nav.from.url), mainEl.scrollTop);
+  });
+  afterNavigate((nav) => {
+    if (!mainEl) return;
+    if (nav.type === 'popstate') {
+      mainEl.scrollTop = scrollPos.get(navKey(nav.to!.url)) ?? 0; // terug/vooruit → herstel
+    } else if (nav.from && nav.to && nav.from.url.pathname !== nav.to.url.pathname) {
+      mainEl.scrollTop = 0; // andere route → bovenaan (filters op dezelfde route: laat staan)
+    }
+  });
 
   // PWA-auto-update: check op een nieuwe service worker bij focus/interval en
   // herlaad eenmalig zodra die de controle overneemt (anders blijft een
@@ -49,7 +68,7 @@
   <div class="shell">
     <!-- main eerst in de DOM (content-first voor schermlezer/toetsenbord);
          nav krijgt visueel z'n plek via flex-order. -->
-    <main>
+    <main bind:this={mainEl}>
       {@render children()}
     </main>
     <NavBar />

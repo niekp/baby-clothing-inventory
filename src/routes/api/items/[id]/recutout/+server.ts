@@ -2,7 +2,7 @@ import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getItem } from '$lib/server/db';
 import { readPhoto } from '$lib/server/photos';
-import { embedFromCutout, generateCutout } from '$lib/server/worker';
+import { generateCutout } from '$lib/server/worker';
 import { serializeItem } from '$lib/server/serialize';
 
 // Genereert de cutout opnieuw, optioneel met een ander model (bv. birefnet-general
@@ -30,9 +30,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
   const file = await readPhoto('disp', item.photo_display);
   if (!file) error(409, 'Display-bestand ontbreekt');
 
-  // zelfde pijplijn als de worker: genormaliseerde cutout + verse embedding/histogram
   const norm = await generateCutout(id, file.data, model);
   if (!norm) error(502, 'Cutout mislukt');
-  await embedFromCutout(id, norm);
   return json(serializeItem(getItem(id)!));
 };

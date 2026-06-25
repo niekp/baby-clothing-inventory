@@ -3,21 +3,27 @@
 
   let { current, onpick }: { current: string; onpick: (size: string) => void } = $props();
 
-  // index in de geordende maten (50, 50/56, 56, … 128); -1 → val 0
-  let idx = $derived(Math.max(0, SIZE_CHIPS.indexOf(current)));
+  // drag-override (visuele feedback tijdens slepen); null → toon de gecommitte maat
+  let dragIdx = $state<number | null>(null);
+  let committedIdx = $derived(Math.max(0, SIZE_CHIPS.indexOf(current)));
+  let liveIdx = $derived(dragIdx ?? committedIdx);
 </script>
 
 <div class="slider">
-  <div class="value">{SIZE_CHIPS.includes(current) ? current : '—'}</div>
+  <div class="value">{SIZE_CHIPS[liveIdx]}</div>
   <input
     type="range"
     min="0"
     max={SIZE_CHIPS.length - 1}
     step="1"
-    value={idx}
+    value={liveIdx}
     aria-label="Maat"
-    aria-valuetext={current}
-    oninput={(e) => onpick(SIZE_CHIPS[Number(e.currentTarget.value)])}
+    aria-valuetext={SIZE_CHIPS[liveIdx]}
+    oninput={(e) => (dragIdx = Number(e.currentTarget.value))}
+    onchange={(e) => {
+      dragIdx = null;
+      onpick(SIZE_CHIPS[Number(e.currentTarget.value)]);
+    }}
   />
   <div class="ends" aria-hidden="true">
     <span>{SIZE_CHIPS[0]}</span>

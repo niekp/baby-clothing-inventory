@@ -5,6 +5,7 @@
   import StackBar from '$lib/components/StackBar.svelte';
   import Button from '$lib/components/Button.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import { stack } from '$lib/client/stack.svelte';
   import { buildItemQuery } from '$lib/filters';
   import type { ItemFilters } from '$lib/types';
   import type { PageData } from './$types';
@@ -72,17 +73,6 @@
   });
 
   let pinned = $derived(data.filtersets.filter((fs) => fs.pinned));
-
-  // maat → kind-namen op die huidige maat (highlight in de kast)
-  let childMarkers = $derived.by(() => {
-    const m = new Map<string, string[]>();
-    for (const c of data.children) {
-      for (const size of c.current_sizes) {
-        m.set(size, [...(m.get(size) ?? []), c.name]);
-      }
-    }
-    return m;
-  });
 </script>
 
 <header class="head">
@@ -91,9 +81,20 @@
   </form>
   <Button variant="ghost" onclick={() => (filterOpen = true)}><Icon name="filter" size={16} /> Filter</Button>
   <Button variant="ghost" onclick={toggleSort}>
-    {data.filters.sort === 'size' ? 'Maat' : 'Nieuwste'}
+    {data.filters.sort === 'size' ? 'Soort' : 'Nieuwste'}
+  </Button>
+  <Button
+    variant={stack.active ? 'primary' : 'ghost'}
+    onclick={() => stack.setActive(!stack.active)}
+  >
+    <Icon name={stack.active ? 'check' : 'shapes'} size={16} />
+    {stack.active ? 'Klaar' : 'Stapel'}
   </Button>
 </header>
+
+{#if stack.active}
+  <p class="stack-hint">Tik items aan om ze op de stapel te leggen.</p>
+{/if}
 
 {#if pinned.length}
   <div class="pins">
@@ -133,7 +134,7 @@
     <Button variant="primary" href="/scan"><Icon name="camera" size={18} /> Scan je eerste stuk</Button>
   </div>
 {:else}
-  <ItemGrid items={data.items} markers={childMarkers} stackable />
+  <ItemGrid items={data.items} grouped={data.filters.sort === 'size'} stackable />
 {/if}
 
 <StackBar />
@@ -153,6 +154,14 @@
     gap: var(--space-2);
     align-items: center;
     margin-bottom: var(--space-3);
+  }
+  .stack-hint {
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: var(--radius);
+    padding: var(--space-2) var(--space-3);
+    font-size: var(--fs-sm);
+    margin: 0 0 var(--space-3);
   }
   .search {
     flex: 1;

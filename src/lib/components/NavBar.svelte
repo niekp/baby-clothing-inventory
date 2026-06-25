@@ -1,7 +1,6 @@
 <script lang="ts">
   import { page } from '$app/state';
   import Icon, { type IconName } from './Icon.svelte';
-  import CountBadge from './CountBadge.svelte';
 
   const tabs: { href: string; label: string; icon: IconName; primary?: boolean }[] = [
     { href: '/', label: 'Kast', icon: 'shirt' },
@@ -15,9 +14,6 @@
     const p = page.url.pathname;
     return href === '/' ? p === '/' : p === href || p.startsWith(href + '/');
   }
-
-  // dubbel-kandidaten → badge op Instellingen
-  let dupCount = $derived(Number(page.data.duplicateCount) || 0);
 </script>
 
 <nav class="navbar" aria-label="Hoofdnavigatie">
@@ -31,11 +27,6 @@
     >
       <span class="icon">
         <Icon name={tab.icon} size={24} />
-        {#if tab.href === '/settings' && dupCount > 0}
-          <span class="badge-pos" aria-label={`${dupCount} mogelijke dubbelen`}>
-            <CountBadge count={dupCount} />
-          </span>
-        {/if}
       </span>
       <span class="label">{tab.label}</span>
     </a>
@@ -64,12 +55,6 @@
   .tab .icon {
     font-size: 22px;
     line-height: 1;
-    position: relative;
-  }
-  .badge-pos {
-    position: absolute;
-    top: -8px;
-    left: 11px;
   }
   .tab.active {
     color: var(--accent);

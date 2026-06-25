@@ -70,6 +70,27 @@ export async function savePhoto(id: number, buffer: Buffer, ext: string): Promis
   }
 }
 
+// Witte rand vóór rembg: voorkomt dat kleding die de fotorand raakt (mouwen e.d.)
+// als achtergrond wordt weggesneden. normalizeCutout cropt de rand daarna weg.
+const CUTOUT_PAD = 0.08;
+export async function padForCutout(
+  bytes: Uint8Array<ArrayBuffer>
+): Promise<Uint8Array<ArrayBuffer>> {
+  try {
+    const buf = Buffer.from(bytes);
+    const { width, height } = await sharp(buf).metadata();
+    if (!width || !height) return bytes;
+    const pad = Math.round(Math.max(width, height) * CUTOUT_PAD);
+    const out = await sharp(buf)
+      .extend({ top: pad, bottom: pad, left: pad, right: pad, background: '#ffffff' })
+      .webp({ quality: 90 }) // webp = invoerformaat van rembg; geen extra lossy generatie
+      .toBuffer();
+    return new Uint8Array(out);
+  } catch {
+    return bytes; // padding niet-fataal: val terug op het origineel
+  }
+}
+
 // Uniforme weergave: crop naar de kleding-bbox (alpha) en centreer op een vierkant.
 const CUTOUT_SIZE = 1024;
 const CUTOUT_FILL = 0.86; // kleding vult deze fractie van de vierkante tegel

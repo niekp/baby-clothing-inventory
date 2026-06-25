@@ -6,13 +6,7 @@ import {
   createFilterset,
   createItem,
   createDb,
-  countMissingEmbedding,
   deleteChild,
-  dismissDuplicate,
-  itemsMissingEmbedding,
-  listDismissedPairs,
-  listEmbeddings,
-  setEmbedding,
   deleteFilterset,
   deleteItem,
   failTagging,
@@ -250,56 +244,6 @@ describe('child CRUD', () => {
     const c = createChild('Z');
     expect(deleteChild(c.id)).toBe(true);
     expect(listChildren().length).toBe(0);
-  });
-});
-
-describe('embeddings + dismissed', () => {
-  it('slaat embedding + kleur-histogram op en leest ze terug als Float32Array', () => {
-    const i = createItem({ size: '68' });
-    setEmbedding(i.id, new Float32Array([0.5, -0.25, 1]), new Float32Array([0.25, 0.75]));
-    const rows = listEmbeddings();
-    expect(rows).toHaveLength(1);
-    expect(Array.from(rows[0].embedding)).toEqual([0.5, -0.25, 1]);
-    expect(Array.from(rows[0].colorHist)).toEqual([0.25, 0.75]);
-    expect(rows[0].size).toBe('68');
-  });
-
-  it('listEmbeddings negeert items zonder kleur-histogram', () => {
-    const i = createItem({ size: '68' });
-    setEmbedding(i.id, new Float32Array([1, 0]), null); // wel embedding, geen histogram
-    expect(listEmbeddings()).toHaveLength(0);
-  });
-
-  it('itemsMissingEmbedding: cutout-items zonder embedding óf histogram', () => {
-    const a = createItem({ size: '68' });
-    updateItem(a.id, { cutout_path: 'a.png', cutout_status: 'done' });
-    createItem({ size: '74' }); // geen cutout → niet meegeteld
-    expect(itemsMissingEmbedding()).toEqual([a.id]);
-    setEmbedding(a.id, new Float32Array([1, 2, 3]), null); // histogram ontbreekt nog → blijft missend
-    expect(itemsMissingEmbedding()).toEqual([a.id]);
-    expect(countMissingEmbedding()).toBe(1);
-    setEmbedding(a.id, new Float32Array([1, 2, 3]), new Float32Array([1]));
-    expect(itemsMissingEmbedding()).toEqual([]);
-    expect(countMissingEmbedding()).toBe(0);
-  });
-
-  it('dismiss is canoniek (a<b) en idempotent', () => {
-    const a = createItem({ size: '68' });
-    const b = createItem({ size: '68' });
-    const [lo, hi] = a.id < b.id ? [a.id, b.id] : [b.id, a.id];
-    dismissDuplicate(b.id, a.id);
-    dismissDuplicate(a.id, b.id);
-    const keys = listDismissedPairs();
-    expect(keys.size).toBe(1);
-    expect(keys.has(`${lo}:${hi}`)).toBe(true);
-  });
-
-  it('verwijdert dismissed-rijen mee als een item weg is (cascade)', () => {
-    const a = createItem({ size: '68' });
-    const b = createItem({ size: '68' });
-    dismissDuplicate(a.id, b.id);
-    deleteItem(a.id);
-    expect(listDismissedPairs().size).toBe(0);
   });
 });
 

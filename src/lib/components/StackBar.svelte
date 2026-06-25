@@ -78,6 +78,7 @@
   .bar {
     position: sticky;
     bottom: var(--space-3);
+    z-index: 20; /* boven de kaart-overlays (z-index 1/2) */
     display: flex;
     justify-content: center;
     pointer-events: none; /* alleen de pill vangt taps; rest klikt door */

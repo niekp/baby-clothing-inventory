@@ -3,18 +3,16 @@ import {
   failTagging,
   finishTagging,
   getItem,
-  itemsMissingEmbedding,
-  listCutoutItems,
-  rebuildDuplicatePairs,
-  setEmbedding,
+  getMeta,
+  listDisplayItems,
+  setMeta,
   sweepStuckWorking,
   updateItem
 } from './db';
 import sharp from 'sharp';
-import { normalizeCutout, readPhoto, saveCutout } from './photos';
+import { normalizeCutout, padForCutout, readPhoto, saveCutout } from './photos';
 import { tagImage } from './ai';
-import { cutout, embed } from './rembg';
-import { colorHistogram } from './colorhist';
+import { cutout } from './rembg';
 
 const IDLE_MS = Number(process.env.WORKER_IDLE_MS ?? 3000);
 
@@ -43,7 +41,6 @@ export async function processOne(): Promise<boolean> {
   // tag op de geflatten cutout (val terug op displayfoto bij cutout-fout)
   try {
     const jpeg = await pngToJpeg(cut ?? file.data);
-    await embedItem(item.id, jpeg, cut); // dubbel-detectie; niet-fataal voor tagging
     const suggestions = await tagImage(jpeg.toString('base64'));
     if (!finishTagging(item.id, JSON.stringify(suggestions))) {
       console.info(`[worker] item ${item.id} ondertussen handmatig afgehandeld — AI-resultaat genegeerd`);
@@ -60,7 +57,7 @@ export async function processOne(): Promise<boolean> {
   return true;
 }
 
-// Vlakt een (cutout-)PNG op wit af tot JPEG — invoer voor AI-tagging én embedding.
+// Vlakt een (cutout-)PNG op wit af tot JPEG — invoer voor AI-tagging.
 export function pngToJpeg(png: Uint8Array): Promise<Buffer> {
   return sharp(Buffer.from(png)).flatten({ background: '#ffffff' }).jpeg({ quality: 90 }).toBuffer();
 }
@@ -73,7 +70,7 @@ export async function generateCutout(
   model?: string
 ): Promise<Uint8Array | null> {
   try {
-    const png = await cutout(displayBytes, model);
+    const png = await cutout(await padForCutout(displayBytes), model);
     if (!getItem(id)) return null; // item ondertussen verwijderd → geen wees-cutout
     const norm = await normalizeCutout(png).catch(() => png); // uniform vierkant; niet-fataal
     const name = await saveCutout(id, norm);
@@ -90,72 +87,32 @@ export async function generateCutout(
   }
 }
 
-// Berekent + bewaart embedding (+ kleur-histogram als er een cutout-PNG is). Niet-fataal.
-export async function embedItem(
-  id: number,
-  jpeg: Buffer,
-  cutPng: Uint8Array | null
-): Promise<boolean> {
-  try {
-    const vec = await embed(new Uint8Array(jpeg));
-    const hist = cutPng ? await colorHistogram(cutPng) : null;
-    if (!getItem(id)) return false; // item ondertussen verwijderd
-    setEmbedding(id, vec, hist);
-    return true;
-  } catch (e) {
-    console.error(`[worker] item ${id} embedding mislukt:`, e);
-    return false;
-  }
+// Cutout-pijplijn-versie: ophogen om alle cutouts eenmalig opnieuw te genereren
+// (bv. na een rembg-/normalisatie-verbetering). 1 = witte-rand-padding (#6).
+const CUTOUT_GEN = 1;
+
+// Eenmalige hergeneratie na een pijplijn-wijziging; versie-gated zoals een migratie,
+// maar async/op de achtergrond (rembg-calls mogen de boot niet blokkeren).
+async function regenCutoutsIfStale(): Promise<void> {
+  if (Number(getMeta('cutout_gen') ?? 0) >= CUTOUT_GEN) return;
+  const { done, failed } = await regenerateAllCutouts();
+  // niet bumpen als álles faalde (sidecar down) → volgende boot probeert opnieuw
+  if (done > 0 || done + failed === 0) setMeta('cutout_gen', String(CUTOUT_GEN));
+  console.info(`[cutouts] eenmalige hergeneratie (gen ${CUTOUT_GEN}): ${done} ok, ${failed} mislukt`);
 }
 
-// Embedding + histogram rechtstreeks uit een cutout-PNG (flatten → jpeg → embed).
-export async function embedFromCutout(id: number, cutPng: Uint8Array): Promise<boolean> {
-  return embedItem(id, await pngToJpeg(cutPng), cutPng);
-}
-
-// Berekent embeddings voor bestaande items mét cutout zonder embedding (eenmalig
-// inhalen). Serieel; de kast is klein. Retourneert tellingen.
-export async function backfillEmbeddings(): Promise<{ done: number; failed: number }> {
+// Genereert de cutout opnieuw voor alle items met display-foto (rembg + normalisatie,
+// mét padding). Géén re-tag: handmatige labels blijven. Serieel; sidecar is concurrency-1.
+async function regenerateAllCutouts(): Promise<{ done: number; failed: number }> {
   let done = 0;
   let failed = 0;
-  for (const id of itemsMissingEmbedding()) {
-    const item = getItem(id);
-    if (!item?.cutout_path) {
-      failed++;
-      continue;
-    }
-    const file = await readPhoto('cutout', item.cutout_path); // cutout-PNG (met alpha)
+  for (const { id, photo_display } of listDisplayItems()) {
+    const file = await readPhoto('disp', photo_display);
     if (!file) {
       failed++;
       continue;
     }
-    try {
-      (await embedFromCutout(id, file.data)) ? done++ : failed++;
-    } catch {
-      failed++;
-    }
-  }
-  return { done, failed };
-}
-
-// Her-normaliseert bestaande cutouts (uniform vierkant) en herberekent embedding +
-// kleur-histogram. Idempotent: een al-genormaliseerde cutout blijft ~gelijk.
-export async function reprocessCutouts(): Promise<{ done: number; failed: number }> {
-  let done = 0;
-  let failed = 0;
-  for (const { id, cutout_path } of listCutoutItems()) {
-    const file = await readPhoto('cutout', cutout_path);
-    if (!file) {
-      failed++;
-      continue;
-    }
-    try {
-      const norm = await normalizeCutout(file.data);
-      await saveCutout(id, norm); // overschrijft <id>.png
-      (await embedFromCutout(id, norm)) ? done++ : failed++;
-    } catch {
-      failed++;
-    }
+    (await generateCutout(id, file.data)) ? done++ : failed++;
   }
   return { done, failed };
 }
@@ -179,6 +136,6 @@ export function startWorker(): void {
   if (g.__bciWorkerStarted) return;
   g.__bciWorkerStarted = true;
   sweepStuckWorking(); // vastgelopen 'working' na een crash terug naar 'processing'
-  rebuildDuplicatePairs(); // paren-tabel synchroon met huidige embeddings na (re)start
+  void regenCutoutsIfStale().catch((e) => console.error('[cutouts] hergeneratie-fout:', e));
   void loop();
 }

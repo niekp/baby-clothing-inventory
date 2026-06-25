@@ -1,18 +1,13 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
-  import { page } from '$app/state';
   import Button from '$lib/components/Button.svelte';
   import Chip from '$lib/components/Chip.svelte';
-  import CountBadge from '$lib/components/CountBadge.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import { SIZES } from '$lib/config';
   import type { Child } from '$lib/types';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
-
-  // dubbel-kandidaten (uit de layout-load)
-  let dupCount = $derived(Number(page.data.duplicateCount) || 0);
 
   let newName = $state('');
   let msg = $state<string | null>(null);
@@ -99,18 +94,6 @@
     <input class="input" placeholder="Naam kind" bind:value={newName} aria-label="Naam nieuw kind" />
     <Button variant="primary" onclick={addChild} disabled={!newName.trim()}>Toevoegen</Button>
   </div>
-</section>
-
-<section>
-  <h2>Mogelijke dubbelen</h2>
-  <p class="muted">
-    Vind kledingstukken die je mogelijk twee keer hebt gefotografeerd, op beeldgelijkenis.
-    Jij bevestigt elk paar.
-  </p>
-  <Button variant="ghost" href="/duplicates">
-    <Icon name="shapes" size={16} /> Dubbelen bekijken
-    <CountBadge count={dupCount} />
-  </Button>
 </section>
 
 <style>

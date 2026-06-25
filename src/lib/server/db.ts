@@ -4,7 +4,6 @@ import { dirname } from 'node:path';
 import type { Child, Filterset, Item, ItemFilters, ItemInput } from '$lib/types';
 import { runMigrations } from './migrations';
 import { sizesMatchingFilter } from '$lib/config';
-import { matchScore } from './dup-match';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS item (
@@ -59,25 +58,15 @@ CREATE TABLE IF NOT EXISTS outfit_item (
   z_index INTEGER NOT NULL DEFAULT 0
 );
 
-CREATE TABLE IF NOT EXISTS dismissed_duplicate (
-  a INTEGER NOT NULL REFERENCES item(id) ON DELETE CASCADE,
-  b INTEGER NOT NULL REFERENCES item(id) ON DELETE CASCADE,
-  PRIMARY KEY (a, b)
-);
-
--- Incrementeel onderhouden kandidaat-dubbelparen (a<b); CASCADE ruimt op bij itemverwijdering.
-CREATE TABLE IF NOT EXISTS duplicate_pair (
-  a INTEGER NOT NULL REFERENCES item(id) ON DELETE CASCADE,
-  b INTEGER NOT NULL REFERENCES item(id) ON DELETE CASCADE,
-  score REAL NOT NULL,
-  PRIMARY KEY (a, b)
+CREATE TABLE IF NOT EXISTS app_meta (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
 );
 
 CREATE INDEX IF NOT EXISTS idx_item_claim ON item(ai_status, created_at);
 CREATE INDEX IF NOT EXISTS idx_item_created ON item(created_at);
 CREATE INDEX IF NOT EXISTS idx_outfit_item_outfit ON outfit_item(outfit_id);
 CREATE INDEX IF NOT EXISTS idx_outfit_item_item ON outfit_item(item_id);
-CREATE INDEX IF NOT EXISTS idx_dup_pair_b ON duplicate_pair(b);
 `;
 
 export type DB = Database.Database;
@@ -172,6 +161,23 @@ export function updateItem(
 
 export function deleteItem(id: number): boolean {
   return getDb().prepare('DELETE FROM item WHERE id = ?').run(id).changes > 0;
+}
+
+// Items met een display-foto (bron voor het opnieuw genereren van cutouts).
+export function listDisplayItems(): { id: number; photo_display: string }[] {
+  return getDb()
+    .prepare('SELECT id, photo_display FROM item WHERE photo_display IS NOT NULL ORDER BY id')
+    .all() as { id: number; photo_display: string }[];
+}
+
+// Eenvoudige key/value-meta (o.a. eenmalige data-taken bij startup).
+export function getMeta(key: string): string | undefined {
+  return (getDb().prepare('SELECT value FROM app_meta WHERE key = ?').get(key) as { value: string } | undefined)
+    ?.value;
+}
+
+export function setMeta(key: string, value: string): void {
+  getDb().prepare('INSERT OR REPLACE INTO app_meta (key, value) VALUES (?, ?)').run(key, value);
 }
 
 const MULTI_FILTERS: { key: keyof ItemFilters; col: string }[] = [
@@ -365,175 +371,4 @@ export function updateChild(
 
 export function deleteChild(id: number): boolean {
   return getDb().prepare('DELETE FROM child WHERE id = ?').run(id).changes > 0;
-}
-
-// --- embeddings (dubbel-detectie) ---
-
-export interface EmbeddingRow {
-  id: number;
-  size: string;
-  type: string | null;
-  embedding: Float32Array;
-  colorHist: Float32Array;
-}
-
-// SQLite-BLOB → Float32Array (dichte kopie: byteOffset is niet gegarandeerd 4-aligned).
-function bufToFloat32(buf: Buffer): Float32Array {
-  const copy = Uint8Array.from(buf);
-  return new Float32Array(copy.buffer, 0, Math.floor(copy.byteLength / 4));
-}
-
-function f32ToBlob(vec: Float32Array): Buffer {
-  // kopie van exact deze view (niet de hele backing buffer als vec een slice is)
-  return Buffer.from(vec.buffer.slice(vec.byteOffset, vec.byteOffset + vec.byteLength));
-}
-
-// Schrijft embedding + kleur-histogram en werkt meteen de dubbelparen van dit item bij.
-export function setEmbedding(id: number, vec: Float32Array, colorHist: Float32Array | null): void {
-  const db = getDb();
-  db.prepare('UPDATE item SET embedding = ?, color_hist = ? WHERE id = ?').run(
-    f32ToBlob(vec),
-    colorHist ? f32ToBlob(colorHist) : null,
-    id
-  );
-  recomputePairsFor(id);
-}
-
-const EMB_SELECT =
-  'SELECT id, size, type, embedding, color_hist FROM item WHERE embedding IS NOT NULL AND color_hist IS NOT NULL';
-
-type EmbBlobRow = { id: number; size: string; type: string | null; embedding: Buffer; color_hist: Buffer };
-const toEmbeddingRow = (r: EmbBlobRow): EmbeddingRow => ({
-  id: r.id,
-  size: r.size,
-  type: r.type,
-  embedding: bufToFloat32(r.embedding),
-  colorHist: bufToFloat32(r.color_hist)
-});
-
-// Items met embedding én kleur-histogram (klaar voor dubbel-detectie).
-export function listEmbeddings(): EmbeddingRow[] {
-  return (getDb().prepare(EMB_SELECT).all() as EmbBlobRow[]).map(toEmbeddingRow);
-}
-
-function getEmbeddingRow(id: number): EmbeddingRow | undefined {
-  const r = getDb().prepare(`${EMB_SELECT} AND id = ?`).get(id) as EmbBlobRow | undefined;
-  return r && toEmbeddingRow(r);
-}
-
-// --- kandidaat-dubbelparen (incrementeel onderhouden, canoniek a<b) ---
-
-export interface DuplicatePair {
-  a: number;
-  b: number;
-  score: number;
-}
-
-// Vervangt de paren die dit item raken: één item tegen de rest (O(n)), dismissed overgeslagen.
-function recomputePairsFor(id: number): void {
-  const db = getDb();
-  const me = getEmbeddingRow(id);
-  const tx = db.transaction(() => {
-    db.prepare('DELETE FROM duplicate_pair WHERE a = ? OR b = ?').run(id, id);
-    if (!me) return;
-    const dismissed = listDismissedPairs();
-    const ins = db.prepare('INSERT INTO duplicate_pair (a, b, score) VALUES (?, ?, ?)');
-    for (const other of listEmbeddings()) {
-      if (other.id === id) continue;
-      const score = matchScore(me, other);
-      if (score == null) continue;
-      const [a, b] = pairKey(me.id, other.id);
-      if (dismissed.has(`${a}:${b}`)) continue;
-      ins.run(a, b, score);
-    }
-  });
-  tx();
-}
-
-// Publieke trigger: herbereken paren voor één item (bv. na een maat-wijziging).
-export function recomputeDuplicatesFor(id: number): void {
-  recomputePairsFor(id);
-}
-
-// Volledige O(n²)-herbouw; draait op boot zodat de tabel klopt na restart/restore.
-export function rebuildDuplicatePairs(): void {
-  const db = getDb();
-  const rows = listEmbeddings();
-  const dismissed = listDismissedPairs();
-  const tx = db.transaction(() => {
-    db.prepare('DELETE FROM duplicate_pair').run();
-    const ins = db.prepare('INSERT INTO duplicate_pair (a, b, score) VALUES (?, ?, ?)');
-    for (let i = 0; i < rows.length; i++) {
-      for (let j = i + 1; j < rows.length; j++) {
-        const score = matchScore(rows[i], rows[j]);
-        if (score == null) continue;
-        const [a, b] = pairKey(rows[i].id, rows[j].id);
-        if (dismissed.has(`${a}:${b}`)) continue;
-        ins.run(a, b, score);
-      }
-    }
-  });
-  tx();
-}
-
-// Kandidaat-paren: gelijk type eerst, daarbinnen hoogste similariteit.
-export function listDuplicatePairs(): DuplicatePair[] {
-  return getDb()
-    .prepare(
-      `SELECT dp.a, dp.b, dp.score
-       FROM duplicate_pair dp
-       JOIN item ia ON ia.id = dp.a
-       JOIN item ib ON ib.id = dp.b
-       ORDER BY (ia.type IS NOT NULL AND ia.type = ib.type) DESC, dp.score DESC`
-    )
-    .all() as DuplicatePair[];
-}
-
-export function duplicateCount(): number {
-  return (getDb().prepare('SELECT COUNT(*) AS n FROM duplicate_pair').get() as { n: number }).n;
-}
-
-// Items mét cutout die nog embedding of kleur-histogram missen (backfill-kandidaten).
-const MISSING_WHERE =
-  'cutout_path IS NOT NULL AND (embedding IS NULL OR color_hist IS NULL)';
-
-// Alle items met een cutout (voor her-normalisatie van bestaande cutouts).
-export function listCutoutItems(): { id: number; cutout_path: string }[] {
-  return getDb()
-    .prepare('SELECT id, cutout_path FROM item WHERE cutout_path IS NOT NULL ORDER BY id')
-    .all() as { id: number; cutout_path: string }[];
-}
-
-export function itemsMissingEmbedding(): number[] {
-  return (
-    getDb().prepare(`SELECT id FROM item WHERE ${MISSING_WHERE} ORDER BY id`).all() as { id: number }[]
-  ).map((r) => r.id);
-}
-
-export function countMissingEmbedding(): number {
-  return (getDb().prepare(`SELECT COUNT(*) AS n FROM item WHERE ${MISSING_WHERE}`).get() as { n: number }).n;
-}
-
-// --- afgewezen dubbel-paren (canoniek a<b) ---
-
-function pairKey(a: number, b: number): [number, number] {
-  return a < b ? [a, b] : [b, a];
-}
-
-export function dismissDuplicate(a: number, b: number): void {
-  const [x, y] = pairKey(a, b);
-  const db = getDb();
-  const tx = db.transaction(() => {
-    db.prepare('INSERT OR IGNORE INTO dismissed_duplicate (a, b) VALUES (?, ?)').run(x, y);
-    db.prepare('DELETE FROM duplicate_pair WHERE a = ? AND b = ?').run(x, y);
-  });
-  tx();
-}
-
-export function listDismissedPairs(): Set<string> {
-  const rows = getDb().prepare('SELECT a, b FROM dismissed_duplicate').all() as {
-    a: number;
-    b: number;
-  }[];
-  return new Set(rows.map((r) => `${r.a}:${r.b}`));
 }
