@@ -13,9 +13,19 @@
   const CROP_KEY = 'bci.scan.crop';
 
   // hoogteband (volle breedte): ruime default, onthouden tussen sessies
-  let crop = $state<CropRect>({ x: 0, y: 0.08, w: 1, h: 0.84 });
+  let crop = $state<CropRect>({ x: 0, y: 0.08, w: 1, h: 0.7 });
   function saveCrop(r: CropRect) {
     localStorage.setItem(CROP_KEY, JSON.stringify(r));
+  }
+
+  // onderrand van de band mag niet onder de bedieningsbalk komen (vrij sleepgebied)
+  let bottombarEl = $state<HTMLElement>();
+  let maxBottom = $state(0.78);
+  function measureBar() {
+    if (!bottombarEl) return;
+    // kleine marge zodat de hele sleepbalk vrij van de bedieningsbalk blijft
+    maxBottom = bottombarEl.getBoundingClientRect().top / window.innerHeight - 0.04;
+    if (crop.y + crop.h > maxBottom) crop = { ...crop, h: Math.max(0.12, maxBottom - crop.y) };
   }
 
   let cam = $state<CameraView>();
@@ -56,6 +66,14 @@
     } catch {
       /* default crop */
     }
+    measureBar();
+    const ro = bottombarEl ? new ResizeObserver(measureBar) : null;
+    if (bottombarEl && ro) ro.observe(bottombarEl);
+    window.addEventListener('resize', measureBar);
+    return () => {
+      ro?.disconnect();
+      window.removeEventListener('resize', measureBar);
+    };
   });
 
   function showToast(msg: string) {
@@ -187,7 +205,7 @@
   {#if !uploadMode}
     <CameraView bind:this={cam} onstate={(s) => (camState = s)} />
     {#if camState.status === 'live'}
-      <CropFrame bind:rect={crop} onchange={saveCrop} />
+      <CropFrame bind:rect={crop} {maxBottom} onchange={saveCrop} />
     {/if}
   {/if}
 
@@ -213,7 +231,7 @@
   {/if}
 
   <!-- onderbalk: maat-slider + torch · shutter · flip + strip -->
-  <div class="bottombar">
+  <div class="bottombar" bind:this={bottombarEl}>
     <div class="size-control">
       <SizeSlider current={size} onpick={pickSize} />
     </div>
