@@ -14,6 +14,9 @@
     const p = page.url.pathname;
     return href === '/' ? p === '/' : p === href || p.startsWith(href + '/');
   }
+
+  // dubbel-kandidaten → badge op Instellingen
+  let dupCount = $derived(Number(page.data.duplicateCount) || 0);
 </script>
 
 <nav class="navbar" aria-label="Hoofdnavigatie">
@@ -25,7 +28,12 @@
       class:primary={tab.primary}
       aria-current={isActive(tab.href) ? 'page' : undefined}
     >
-      <span class="icon"><Icon name={tab.icon} size={24} /></span>
+      <span class="icon">
+        <Icon name={tab.icon} size={24} />
+        {#if tab.href === '/settings' && dupCount > 0}
+          <span class="badge" aria-label={`${dupCount} mogelijke dubbelen`}>{dupCount}</span>
+        {/if}
+      </span>
       <span class="label">{tab.label}</span>
     </a>
   {/each}
@@ -53,6 +61,22 @@
   .tab .icon {
     font-size: 22px;
     line-height: 1;
+    position: relative;
+  }
+  .badge {
+    position: absolute;
+    top: -6px;
+    left: 12px;
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
   }
   .tab.active {
     color: var(--accent);
