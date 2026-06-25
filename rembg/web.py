@@ -45,7 +45,8 @@ def get_session(model: str):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    get_session(DEFAULT_MODEL)  # default-model warmen zodat de eerste call snel is
+    # geen eager model-load: zo accepteert uvicorn (en /health) direct → snel healthy.
+    # modellen laden lazy bij de eerste /cutout resp. /embed (async, niet kritiek).
     yield
 
 
