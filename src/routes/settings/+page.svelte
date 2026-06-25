@@ -112,11 +112,6 @@
   </Button>
 </section>
 
-<section>
-  <h2>Maten</h2>
-  <p class="muted">Vaste matenlijst (EU): {SIZES.join(', ')}.</p>
-</section>
-
 <style>
   h1 {
     margin: 0 0 var(--space-4);
