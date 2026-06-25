@@ -404,6 +404,13 @@ export function listEmbeddings(): EmbeddingRow[] {
 const MISSING_WHERE =
   'cutout_path IS NOT NULL AND (embedding IS NULL OR color_hist IS NULL)';
 
+// Alle items met een cutout (voor her-normalisatie van bestaande cutouts).
+export function listCutoutItems(): { id: number; cutout_path: string }[] {
+  return getDb()
+    .prepare('SELECT id, cutout_path FROM item WHERE cutout_path IS NOT NULL ORDER BY id')
+    .all() as { id: number; cutout_path: string }[];
+}
+
 export function itemsMissingEmbedding(): number[] {
   return (
     getDb().prepare(`SELECT id FROM item WHERE ${MISSING_WHERE} ORDER BY id`).all() as { id: number }[]

@@ -4,12 +4,13 @@ import {
   finishTagging,
   getItem,
   itemsMissingEmbedding,
+  listCutoutItems,
   setEmbedding,
   sweepStuckWorking,
   updateItem
 } from './db';
 import sharp from 'sharp';
-import { readPhoto, saveCutout } from './photos';
+import { normalizeCutout, readPhoto, saveCutout } from './photos';
 import { tagImage } from './ai';
 import { cutout, embed } from './rembg';
 import { colorHistogram } from './colorhist';
@@ -76,9 +77,10 @@ export async function generateCutout(
   try {
     const png = await cutout(displayBytes);
     if (!getItem(id)) return null; // item ondertussen verwijderd → geen wees-cutout
-    const name = await saveCutout(id, png);
+    const norm = await normalizeCutout(png).catch(() => png); // uniform vierkant; niet-fataal
+    const name = await saveCutout(id, norm);
     updateItem(id, { cutout_path: name, cutout_status: 'done' });
-    return png;
+    return norm;
   } catch (e) {
     console.error(`[worker] item ${id} cutout mislukt:`, e);
     try {
@@ -134,6 +136,32 @@ export async function backfillEmbeddings(): Promise<{ done: number; failed: numb
         .toBuffer();
       // embedding op de afgevlakte foto, kleur-histogram op de cutout (met alpha)
       (await embedItem(id, jpeg, file.data)) ? done++ : failed++;
+    } catch {
+      failed++;
+    }
+  }
+  return { done, failed };
+}
+
+// Her-normaliseert bestaande cutouts (uniform vierkant) en herberekent embedding +
+// kleur-histogram. Idempotent: een al-genormaliseerde cutout blijft ~gelijk.
+export async function reprocessCutouts(): Promise<{ done: number; failed: number }> {
+  let done = 0;
+  let failed = 0;
+  for (const { id, cutout_path } of listCutoutItems()) {
+    const file = await readPhoto('cutout', cutout_path);
+    if (!file) {
+      failed++;
+      continue;
+    }
+    try {
+      const norm = await normalizeCutout(file.data);
+      await saveCutout(id, norm); // overschrijft <id>.png
+      const jpeg = await sharp(Buffer.from(norm))
+        .flatten({ background: '#ffffff' })
+        .jpeg({ quality: 90 })
+        .toBuffer();
+      (await embedItem(id, jpeg, norm)) ? done++ : failed++;
     } catch {
       failed++;
     }

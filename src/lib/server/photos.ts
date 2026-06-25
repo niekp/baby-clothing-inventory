@@ -68,6 +68,54 @@ export async function savePhoto(id: number, buffer: Buffer, ext: string): Promis
   }
 }
 
+// Uniforme weergave: knip naar de bounding-box van het kledingstuk (alpha) en
+// centreer op een vierkant canvas met vaste marge. Zo wordt elk item even groot
+// getoond, ongeacht waar/hoe groot het in de foto stond.
+const CUTOUT_SIZE = 1024;
+const CUTOUT_FILL = 0.86; // kleding vult deze fractie van de vierkante tegel
+const CUTOUT_ALPHA_MIN = 16;
+
+export async function normalizeCutout(png: Uint8Array): Promise<Uint8Array> {
+  const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
+  // alpha-bounding-box zelf bepalen (rembg laat willekeurige RGB onder alpha=0,
+  // dus sharp's kleur-gebaseerde .trim() is hier onbetrouwbaar)
+  const { data, info } = await sharp(Buffer.from(png))
+    .ensureAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+  const { width, height, channels } = info;
+  let minX = width;
+  let minY = height;
+  let maxX = -1;
+  let maxY = -1;
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      if (data[(y * width + x) * channels + 3] > CUTOUT_ALPHA_MIN) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < 0) return png; // geen kledingpixels → ongemoeid laten
+
+  const inner = Math.round(CUTOUT_SIZE * CUTOUT_FILL);
+  const garment = await sharp(Buffer.from(png))
+    .ensureAlpha()
+    .extract({ left: minX, top: minY, width: maxX - minX + 1, height: maxY - minY + 1 })
+    .resize(inner, inner, { fit: 'inside', withoutEnlargement: false, background: transparent })
+    .png()
+    .toBuffer();
+  const out = await sharp({
+    create: { width: CUTOUT_SIZE, height: CUTOUT_SIZE, channels: 4, background: transparent }
+  })
+    .composite([{ input: garment, gravity: 'center' }])
+    .png()
+    .toBuffer();
+  return new Uint8Array(out);
+}
+
 // Schrijft een cutout-PNG (transparante achtergrond) en geeft de bestandsnaam terug.
 export async function saveCutout(id: number, png: Uint8Array): Promise<string> {
   ensureDirs();
