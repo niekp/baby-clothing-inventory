@@ -48,11 +48,13 @@ services:
         limits: { cpus: '2', memory: 2G }
         reservations: { cpus: '0.5', memory: 512M }
     healthcheck:
+      # start_period dekt de zware imports (~15s) zodat checks dan niet als 'unhealthy'
+      # tellen; korte interval detecteert 'healthy' daarna snel.
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:28872/health')"]
       interval: 3s
-      timeout: 3s
-      retries: 5
-      start_period: 2s
+      timeout: 4s
+      retries: 3
+      start_period: 30s
 
 networks:
   ollama-net:
