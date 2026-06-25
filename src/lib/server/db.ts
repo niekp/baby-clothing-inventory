@@ -72,6 +72,8 @@ CREATE INDEX IF NOT EXISTS idx_outfit_item_item ON outfit_item(item_id);
 
 export type DB = Database.Database;
 
+let _dbGen = 0; // bumpt per nieuwe connectie → invalideert caches gebonden aan deze db
+
 export function createDb(path: string): DB {
   if (path !== ':memory:') mkdirSync(dirname(path), { recursive: true });
   const db = new Database(path);
@@ -79,6 +81,7 @@ export function createDb(path: string): DB {
   db.pragma('foreign_keys = ON'); // nodig voor ON DELETE CASCADE
   db.exec(SCHEMA); // baseline (idempotent)
   runMigrations(db); // openstaande migraties bovenop de baseline
+  _dbGen++;
   return db;
 }
 
@@ -374,7 +377,8 @@ function bufToFloat32(buf: Buffer): Float32Array {
 }
 
 function f32ToBlob(vec: Float32Array): Buffer {
-  return Buffer.from(vec.buffer, vec.byteOffset, vec.byteLength);
+  // kopie van exact deze view (niet de hele backing buffer als vec een slice is)
+  return Buffer.from(vec.buffer.slice(vec.byteOffset, vec.byteOffset + vec.byteLength));
 }
 
 // Schrijft embedding + kleur-histogram samen (atomisch: beide of geen van beide).
@@ -415,6 +419,19 @@ export function itemsMissingEmbedding(): number[] {
   return (
     getDb().prepare(`SELECT id FROM item WHERE ${MISSING_WHERE} ORDER BY id`).all() as { id: number }[]
   ).map((r) => r.id);
+}
+
+// Goedkope vingerafdruk van de dubbel-detectie-staat (zonder O(n²)): wijzigt zodra
+// een embedding/histogram, afgewezen paar of het hoogste id verandert.
+export function duplicateStateKey(): string {
+  const r = getDb()
+    .prepare(
+      `SELECT (SELECT COUNT(*) FROM item WHERE embedding IS NOT NULL AND color_hist IS NOT NULL) AS n,
+              (SELECT COUNT(*) FROM dismissed_duplicate) AS d,
+              (SELECT IFNULL(MAX(id), 0) FROM item) AS m`
+    )
+    .get() as { n: number; d: number; m: number };
+  return `${_dbGen}:${r.n}:${r.d}:${r.m}`;
 }
 
 export function countMissingEmbedding(): number {

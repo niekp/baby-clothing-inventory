@@ -3,6 +3,7 @@
   import { page } from '$app/state';
   import Button from '$lib/components/Button.svelte';
   import Chip from '$lib/components/Chip.svelte';
+  import CountBadge from '$lib/components/CountBadge.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import { SIZES } from '$lib/config';
   import type { Child } from '$lib/types';
@@ -108,7 +109,7 @@
   </p>
   <Button variant="ghost" href="/duplicates">
     <Icon name="shapes" size={16} /> Dubbelen bekijken
-    {#if dupCount > 0}<span class="count">{dupCount}</span>{/if}
+    <CountBadge count={dupCount} />
   </Button>
 </section>
 
@@ -165,17 +166,5 @@
   }
   .add .input {
     flex: 1;
-  }
-  .count {
-    display: inline-block;
-    min-width: 18px;
-    padding: 0 5px;
-    border-radius: 999px;
-    background: var(--accent);
-    color: var(--accent-ink);
-    font-size: 11px;
-    font-weight: 700;
-    line-height: 18px;
-    text-align: center;
   }
 </style>

@@ -1,21 +1,17 @@
 const REMBG_URL = process.env.REMBG_URL ?? 'http://rembg:28872';
-// Ruime timeout: birefnet-general (~47s) past hierbinnen; isnet ~2s. Voorkomt
-// dat een vastgelopen sidecar de serieel-worker parkeert.
-const TIMEOUT_MS = 60_000;
+const TIMEOUT_MS = 60_000; // ruim genoeg voor birefnet-general (~47s)
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const CONN_CODES = new Set(['ECONNREFUSED', 'ENOTFOUND', 'ECONNRESET', 'EAI_AGAIN']);
 
-// Alleen verbindings­fouten (sidecar nog niet op, bv. ~30s na een deploy) zijn het
-// herproberen waard; HTTP-fouten en timeouts niet (dan is er echt iets mis).
+// true bij verbindingsfouten (sidecar nog niet op) — wel herproberen; HTTP/timeout niet
 function isConnError(e: unknown): boolean {
   const code = (e as { cause?: { code?: string } })?.cause?.code;
   if (code && CONN_CODES.has(code)) return true;
   return e instanceof TypeError && /fetch failed/i.test(e.message);
 }
 
-// Herhaalt bij verbindingsfouten over ~30s (sidecar warmt nog op). Faalt direct bij
-// andere fouten.
+// herhaalt bij verbindingsfouten over ~30s; faalt direct bij andere fouten
 async function withConnRetry<T>(fn: () => Promise<T>, retries = 6, gapMs = 5000): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {

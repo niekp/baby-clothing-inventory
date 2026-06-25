@@ -36,22 +36,13 @@ export async function processOne(): Promise<boolean> {
     return true;
   }
 
-  // 1) cutout eerst (~2s): een vrijstaand kledingstuk zonder achtergrond-ruis is
-  // veel duidelijker voor de AI dan een portretfoto met kamer eromheen.
+  // cutout eerst: vrijstaand kledingstuk tagt beter dan een portretfoto met kamer.
   const cut = await generateCutout(item.id, file.data);
 
-  // 2) tagging op de cutout (op wit geflatten); val terug op de displayfoto als
-  //    de cutout faalde. Resultaat alleen wegschrijven als 't item nog 'working'
-  //    is (de gebruiker kan 't ondertussen handmatig hebben afgehandeld).
+  // tag op de geflatten cutout (val terug op displayfoto bij cutout-fout)
   try {
-    // ollama's vision-decoder (llama.cpp mtmd) leest geen WebP en geen alpha →
-    // flatten op wit + JPEG. Cutout op wit = schone "product"-foto.
-    const jpeg = await sharp(Buffer.from(cut ?? file.data))
-      .flatten({ background: '#ffffff' })
-      .jpeg({ quality: 90 })
-      .toBuffer();
-    // embedding + kleur-histogram (dubbel-detectie); niet-fataal voor tagging
-    await embedItem(item.id, jpeg, cut);
+    const jpeg = await pngToJpeg(cut ?? file.data);
+    await embedItem(item.id, jpeg, cut); // dubbel-detectie; niet-fataal voor tagging
     const suggestions = await tagImage(jpeg.toString('base64'));
     if (!finishTagging(item.id, JSON.stringify(suggestions))) {
       console.info(`[worker] item ${item.id} ondertussen handmatig afgehandeld — AI-resultaat genegeerd`);
@@ -68,14 +59,20 @@ export async function processOne(): Promise<boolean> {
   return true;
 }
 
-// Maakt de vrijstaande cutout via de rembg-sidecar. Niet-fataal. Retourneert de
-// PNG-bytes (voor hergebruik bij tagging) of null bij fout/verwijderd item.
+// Vlakt een (cutout-)PNG op wit af tot JPEG — invoer voor AI-tagging én embedding.
+export function pngToJpeg(png: Uint8Array): Promise<Buffer> {
+  return sharp(Buffer.from(png)).flatten({ background: '#ffffff' }).jpeg({ quality: 90 }).toBuffer();
+}
+
+// Maakt de genormaliseerde cutout via de sidecar (optioneel ander model). Niet-fataal.
+// Retourneert de PNG-bytes of null bij fout/verwijderd item.
 export async function generateCutout(
   id: number,
-  displayBytes: Uint8Array<ArrayBuffer>
+  displayBytes: Uint8Array<ArrayBuffer>,
+  model?: string
 ): Promise<Uint8Array | null> {
   try {
-    const png = await cutout(displayBytes);
+    const png = await cutout(displayBytes, model);
     if (!getItem(id)) return null; // item ondertussen verwijderd → geen wees-cutout
     const norm = await normalizeCutout(png).catch(() => png); // uniform vierkant; niet-fataal
     const name = await saveCutout(id, norm);
@@ -92,10 +89,7 @@ export async function generateCutout(
   }
 }
 
-// Berekent + bewaart de CLIP-embedding van een item. Niet-fataal: een fout hier
-// mag de tagging niet breken (vandaar eigen try/catch i.p.v. doorgooien).
-// cutPng: de cutout-PNG (met alpha) voor het kleur-histogram; null → geen histogram
-// (item telt dan niet mee in de dubbel-detectie).
+// Berekent + bewaart embedding (+ kleur-histogram als er een cutout-PNG is). Niet-fataal.
 export async function embedItem(
   id: number,
   jpeg: Buffer,
@@ -111,6 +105,11 @@ export async function embedItem(
     console.error(`[worker] item ${id} embedding mislukt:`, e);
     return false;
   }
+}
+
+// Embedding + histogram rechtstreeks uit een cutout-PNG (flatten → jpeg → embed).
+export async function embedFromCutout(id: number, cutPng: Uint8Array): Promise<boolean> {
+  return embedItem(id, await pngToJpeg(cutPng), cutPng);
 }
 
 // Berekent embeddings voor bestaande items mét cutout zonder embedding (eenmalig
@@ -130,12 +129,7 @@ export async function backfillEmbeddings(): Promise<{ done: number; failed: numb
       continue;
     }
     try {
-      const jpeg = await sharp(Buffer.from(file.data))
-        .flatten({ background: '#ffffff' })
-        .jpeg({ quality: 90 })
-        .toBuffer();
-      // embedding op de afgevlakte foto, kleur-histogram op de cutout (met alpha)
-      (await embedItem(id, jpeg, file.data)) ? done++ : failed++;
+      (await embedFromCutout(id, file.data)) ? done++ : failed++;
     } catch {
       failed++;
     }
@@ -157,11 +151,7 @@ export async function reprocessCutouts(): Promise<{ done: number; failed: number
     try {
       const norm = await normalizeCutout(file.data);
       await saveCutout(id, norm); // overschrijft <id>.png
-      const jpeg = await sharp(Buffer.from(norm))
-        .flatten({ background: '#ffffff' })
-        .jpeg({ quality: 90 })
-        .toBuffer();
-      (await embedItem(id, jpeg, norm)) ? done++ : failed++;
+      (await embedFromCutout(id, norm)) ? done++ : failed++;
     } catch {
       failed++;
     }

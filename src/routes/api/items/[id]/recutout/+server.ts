@@ -1,8 +1,8 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getItem, updateItem } from '$lib/server/db';
-import { readPhoto, saveCutout } from '$lib/server/photos';
-import { cutout } from '$lib/server/rembg';
+import { getItem } from '$lib/server/db';
+import { readPhoto } from '$lib/server/photos';
+import { embedFromCutout, generateCutout } from '$lib/server/worker';
 import { serializeItem } from '$lib/server/serialize';
 
 // Genereert de cutout opnieuw, optioneel met een ander model (bv. birefnet-general
@@ -30,16 +30,9 @@ export const POST: RequestHandler = async ({ params, request }) => {
   const file = await readPhoto('disp', item.photo_display);
   if (!file) error(409, 'Display-bestand ontbreekt');
 
-  try {
-    const png = await cutout(file.data, model);
-    const name = await saveCutout(id, png);
-    return json(serializeItem(updateItem(id, { cutout_path: name, cutout_status: 'done' })!));
-  } catch {
-    try {
-      updateItem(id, { cutout_status: 'failed' });
-    } catch {
-      /* db onbereikbaar */
-    }
-    error(502, 'Cutout mislukt');
-  }
+  // zelfde pijplijn als de worker: genormaliseerde cutout + verse embedding/histogram
+  const norm = await generateCutout(id, file.data, model);
+  if (!norm) error(502, 'Cutout mislukt');
+  await embedFromCutout(id, norm);
+  return json(serializeItem(getItem(id)!));
 };

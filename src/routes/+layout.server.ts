@@ -1,8 +1,7 @@
 import type { LayoutServerLoad } from './$types';
-import { findDuplicatePairs } from '$lib/server/duplicates';
+import { duplicateCount } from '$lib/server/duplicates';
 
-// Aantal openstaande dubbel-kandidaten voor de badge in de nav. Goedkoop (O(n²)
-// over een kleine kast); ververst via invalidateAll na bevestigen/negeren.
+// Dubbel-kandidaten voor de nav-badge; gecachet op staat-vingerafdruk (geen O(n²) per navigatie).
 export const load: LayoutServerLoad = () => {
-  return { duplicateCount: findDuplicatePairs().length };
+  return { duplicateCount: duplicateCount() };
 };

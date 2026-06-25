@@ -3,6 +3,7 @@
   import Button from '$lib/components/Button.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import type { ItemDTO } from '$lib/server/serialize';
+  import { thumbSrc, imgFallback } from '$lib/client/images';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -62,8 +63,8 @@
           {@const other = idx === 0 ? pair.b : pair.a}
           <div class="side">
             <a class="photo" href={`/items/${item.id}`}>
-              {#if item.thumb_url || item.cutout_url || item.display_url}
-                <img src={item.thumb_url ?? item.cutout_url ?? item.display_url} alt="" />
+              {#if thumbSrc(item)}
+                <img src={thumbSrc(item)} alt="" onerror={(e) => imgFallback(e, item)} />
               {:else}
                 <span class="ph"><Icon name="shirt" size={32} /></span>
               {/if}

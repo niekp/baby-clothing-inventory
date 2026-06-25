@@ -70,17 +70,14 @@ export async function savePhoto(id: number, buffer: Buffer, ext: string): Promis
   }
 }
 
-// Uniforme weergave: knip naar de bounding-box van het kledingstuk (alpha) en
-// centreer op een vierkant canvas met vaste marge. Zo wordt elk item even groot
-// getoond, ongeacht waar/hoe groot het in de foto stond.
+// Uniforme weergave: crop naar de kleding-bbox (alpha) en centreer op een vierkant.
 const CUTOUT_SIZE = 1024;
 const CUTOUT_FILL = 0.86; // kleding vult deze fractie van de vierkante tegel
 const CUTOUT_ALPHA_MIN = 16;
 
 export async function normalizeCutout(png: Uint8Array): Promise<Uint8Array> {
   const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
-  // alpha-bounding-box zelf bepalen (rembg laat willekeurige RGB onder alpha=0,
-  // dus sharp's kleur-gebaseerde .trim() is hier onbetrouwbaar)
+  // alpha-bbox zelf bepalen: sharp's kleur-trim faalt op rembg's willekeurige RGB onder alpha=0
   const { data, info } = await sharp(Buffer.from(png))
     .ensureAlpha()
     .raw()

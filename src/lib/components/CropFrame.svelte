@@ -2,12 +2,10 @@
   import type { CropRect } from '$lib/client/capture';
 
   // Hoogteband: volle breedte, alleen boven- en onderrand verstelbaar.
-  // maxBottom begrenst de onderrand tot boven de bedieningsbalk (vrij sleepgebied).
   let {
     rect = $bindable(),
-    maxBottom = 1,
     onchange
-  }: { rect: CropRect; maxBottom?: number; onchange?: (r: CropRect) => void } = $props();
+  }: { rect: CropRect; onchange?: (r: CropRect) => void } = $props();
 
   let el = $state<HTMLDivElement>();
   const MIN = 0.12; // minimale bandhoogte
@@ -27,7 +25,7 @@
     let top = drag.top;
     let bottom = drag.bottom;
     if (drag.edge === 'top') top = Math.min(clamp(drag.top + dy), bottom - MIN);
-    else bottom = Math.min(Math.max(clamp(drag.bottom + dy), top + MIN), maxBottom);
+    else bottom = Math.max(clamp(drag.bottom + dy), top + MIN);
     rect = { x: 0, y: top, w: 1, h: bottom - top };
   }
 

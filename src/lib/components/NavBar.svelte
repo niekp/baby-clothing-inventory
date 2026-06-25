@@ -1,6 +1,7 @@
 <script lang="ts">
   import { page } from '$app/state';
   import Icon, { type IconName } from './Icon.svelte';
+  import CountBadge from './CountBadge.svelte';
 
   const tabs: { href: string; label: string; icon: IconName; primary?: boolean }[] = [
     { href: '/', label: 'Kast', icon: 'shirt' },
@@ -31,7 +32,9 @@
       <span class="icon">
         <Icon name={tab.icon} size={24} />
         {#if tab.href === '/settings' && dupCount > 0}
-          <span class="badge" aria-label={`${dupCount} mogelijke dubbelen`}>{dupCount}</span>
+          <span class="badge-pos" aria-label={`${dupCount} mogelijke dubbelen`}>
+            <CountBadge count={dupCount} />
+          </span>
         {/if}
       </span>
       <span class="label">{tab.label}</span>
@@ -63,20 +66,10 @@
     line-height: 1;
     position: relative;
   }
-  .badge {
+  .badge-pos {
     position: absolute;
-    top: -6px;
-    left: 12px;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    border-radius: 999px;
-    background: var(--accent);
-    color: var(--accent-ink);
-    font-size: 10px;
-    font-weight: 700;
-    line-height: 16px;
-    text-align: center;
+    top: -8px;
+    left: 11px;
   }
   .tab.active {
     color: var(--accent);

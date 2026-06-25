@@ -4,21 +4,19 @@ import os
 import time
 from contextlib import asynccontextmanager
 
-# Alleen lichte imports op moduleniveau → vers proces ~60MB en uvicorn meteen klaar.
-# De zware libs (rembg/onnxruntime/numpy/PIL) laden lazy bij de eerste scan.
+# lichte module-imports; zware libs (rembg/onnxruntime/numpy/PIL) laden lazy
 from fastapi import FastAPI, Query, Request, Response
 
 DEFAULT_MODEL = os.environ.get("REMBG_MODEL", "isnet-general-use")
 CLIP_PATH = "/models/clip-vision.onnx"
-# Na deze tijd zonder gebruik sluit het proces af → docker herstart het vers
-# (geheugen, inclusief imports, volledig vrij). Wie zelden scant houdt ~60MB vast.
-IDLE_TTL = float(os.environ.get("MODEL_TTL_SECONDS", "3600"))
+IDLE_TTL = float(os.environ.get("MODEL_TTL_SECONDS", "3600"))  # idle → proces afsluiten, docker herstart vers
 
 ALLOWED_MODELS = {"isnet-general-use", "birefnet-general"}
 
 _sessions = {}
 _clip = None
 _last_used = time.monotonic()
+_inflight = 0  # actieve model-requests; de reaper sluit nooit af terwijl er werk loopt
 
 
 def _touch():
@@ -59,13 +57,12 @@ def clip_preprocess(data: bytes):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # achtergrondtaak: na IDLE_TTL zonder gebruik (en alleen als er iets geladen is)
-    # het proces afsluiten zodat docker het vers herstart → alle geheugen vrij.
+    # sluit het proces af na IDLE_TTL zonder gebruik (docker herstart vers)
     async def reaper():
         while True:
             await asyncio.sleep(min(IDLE_TTL, 300))
             loaded = bool(_sessions) or _clip is not None
-            if loaded and time.monotonic() - _last_used > IDLE_TTL:
+            if loaded and _inflight == 0 and time.monotonic() - _last_used > IDLE_TTL:
                 os._exit(0)
 
     task = asyncio.create_task(reaper())
@@ -85,26 +82,35 @@ def health():
 
 @app.post("/cutout")
 async def cutout(request: Request, model: str | None = Query(default=None)):
+    global _inflight
     m = model or DEFAULT_MODEL
     if m not in ALLOWED_MODELS:
         return Response(status_code=400, content=b"unknown model")
     from rembg import remove
 
-    data = await request.body()
-    out = remove(data, session=get_session(m))
-    return Response(content=out, media_type="image/png")
+    _inflight += 1
+    try:
+        data = await request.body()
+        return Response(content=remove(data, session=get_session(m)), media_type="image/png")
+    finally:
+        _inflight -= 1
 
 
 @app.post("/embed")
 async def embed(request: Request):
     import numpy as np
 
-    data = await request.body()
-    if not data:
-        return Response(status_code=400, content=b"empty body")
-    sess = get_clip()
-    x = clip_preprocess(data)
-    out = sess.run(None, {sess.get_inputs()[0].name: x})[0][0].astype(np.float32)
-    norm = float(np.linalg.norm(out))
-    vec = (out / norm) if norm > 0 else out  # L2-normaliseren → cosine = dot
-    return {"embedding": vec.tolist()}
+    global _inflight
+    _inflight += 1
+    try:
+        data = await request.body()
+        if not data:
+            return Response(status_code=400, content=b"empty body")
+        sess = get_clip()
+        x = clip_preprocess(data)
+        out = sess.run(None, {sess.get_inputs()[0].name: x})[0][0].astype(np.float32)
+        norm = float(np.linalg.norm(out))
+        vec = (out / norm) if norm > 0 else out  # L2-normaliseren → cosine = dot
+        return {"embedding": vec.tolist()}
+    finally:
+        _inflight -= 1

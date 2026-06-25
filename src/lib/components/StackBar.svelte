@@ -1,30 +1,31 @@
 <script lang="ts">
   import { stack } from '$lib/client/stack.svelte';
   import type { ItemDTO } from '$lib/server/serialize';
+  import { thumbSrc, imgFallback } from '$lib/client/images';
   import BottomSheet from './BottomSheet.svelte';
   import Button from './Button.svelte';
   import Icon from './Icon.svelte';
 
   let open = $state(false);
 
-  // alle items (ongefilterd) om id's → thumbnails te resolven; lazy bij eerste opening
+  // alle items (ongefilterd) om id's → thumbnails te resolven; (her)laad bij elke opening
+  // zodat na het stapelen verschijnen ook tonen
   let items = $state<ItemDTO[]>([]);
   let loadState = $state<'idle' | 'loading' | 'done' | 'error'>('idle');
   $effect(() => {
-    if (open && loadState === 'idle') {
-      loadState = 'loading';
-      fetch('/api/items')
-        .then((r) => {
-          if (!r.ok) throw new Error();
-          return r.json();
-        })
-        .then((all: ItemDTO[]) => {
-          items = all;
-          stack.prune(all.map((i) => i.id)); // dangling id's (verwijderde items) opruimen
-          loadState = 'done';
-        })
-        .catch(() => (loadState = 'error')); // bij fout de stapel NIET legen
-    }
+    if (!open) return;
+    loadState = 'loading';
+    fetch('/api/items')
+      .then((r) => {
+        if (!r.ok) throw new Error();
+        return r.json();
+      })
+      .then((all: ItemDTO[]) => {
+        items = all;
+        stack.prune(all.map((i) => i.id)); // dangling id's (verwijderde items) opruimen
+        loadState = 'done';
+      })
+      .catch(() => (loadState = 'error')); // bij fout de stapel NIET legen
   });
 
   // gestapelde items in stapel-volgorde (mist een thumb tot de fetch klaar is)
@@ -52,9 +53,9 @@
   {:else}
     <div class="thumbs">
       {#each stacked as item (item.id)}
-        {@const thumb = item.thumb_url || item.cutout_url || item.display_url}
+        {@const thumb = thumbSrc(item)}
         <div class="thumb">
-          {#if thumb}<img src={thumb} alt="" />{:else}<span class="ph"><Icon name="shirt" size={24} /></span>{/if}
+          {#if thumb}<img src={thumb} alt="" onerror={(e) => imgFallback(e, item)} />{:else}<span class="ph"><Icon name="shirt" size={24} /></span>{/if}
           <span class="sz">{item.size}</span>
           <button class="rm" onclick={() => stack.remove(item.id)} aria-label="Van stapel halen">
             <Icon name="x" size={14} />

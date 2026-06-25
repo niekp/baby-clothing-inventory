@@ -2,6 +2,14 @@ import type Database from 'better-sqlite3';
 
 type Migration = { name: string; up: (db: Database.Database) => void };
 
+// Voegt een kolom toe als die nog niet bestaat (guarded ALTER, idempotent).
+function addColumnIfMissing(db: Database.Database, table: string, col: string, type: string): void {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!cols.some((c) => c.name === col)) {
+    db.prepare(`ALTER TABLE ${table} ADD COLUMN ${col} ${type}`).run();
+  }
+}
+
 // Geordende migraties bovenop de baseline (CREATE TABLE IF NOT EXISTS in db.ts).
 // PRAGMA user_version houdt bij hoeveel er gedraaid zijn. Elke migratie draait
 // precies één keer, in een transactie. Conventie: nieuwe kolommen via een
@@ -47,24 +55,14 @@ export const MIGRATIONS: Migration[] = [
   {
     // item.embedding: CLIP-vector (BLOB) voor dubbel-detectie. Guarded ALTER zodat
     // fresh DB's (baseline zonder kolom) en bestaande DB's allebei matchen.
+    // item.embedding: CLIP-vector (BLOB) voor dubbel-detectie
     name: 'add-item-embedding',
-    up: (db) => {
-      const cols = db.prepare('PRAGMA table_info(item)').all() as { name: string }[];
-      if (!cols.some((c) => c.name === 'embedding')) {
-        db.prepare('ALTER TABLE item ADD COLUMN embedding BLOB').run();
-      }
-    }
+    up: (db) => addColumnIfMissing(db, 'item', 'embedding', 'BLOB')
   },
   {
-    // item.color_hist: kleur-histogram (BLOB) naast de CLIP-embedding voor de
-    // dubbel-detectie (kleur-gate). Guarded ALTER.
+    // item.color_hist: kleur-histogram (BLOB) voor de kleur-gate
     name: 'add-item-color-hist',
-    up: (db) => {
-      const cols = db.prepare('PRAGMA table_info(item)').all() as { name: string }[];
-      if (!cols.some((c) => c.name === 'color_hist')) {
-        db.prepare('ALTER TABLE item ADD COLUMN color_hist BLOB').run();
-      }
-    }
+    up: (db) => addColumnIfMissing(db, 'item', 'color_hist', 'BLOB')
   }
 ];
 

@@ -2,6 +2,7 @@
   import type { ItemDTO } from '$lib/server/serialize';
   import Icon from './Icon.svelte';
   import { stack } from '$lib/client/stack.svelte';
+  import { thumbSrc, imgFallback } from '$lib/client/images';
 
   let {
     item,
@@ -14,13 +15,13 @@
 
 <div class="card" class:marked={marker}>
   <div class="photo">
-    {#if item.thumb_url || item.cutout_url || item.display_url}
-      <!-- kleine transparante thumb voor de grid; val terug op cutout/displayfoto -->
+    {#if thumbSrc(item)}
       <img
-        src={item.thumb_url ?? item.cutout_url ?? item.display_url}
+        src={thumbSrc(item)}
         class:cut={item.thumb_url || item.cutout_url}
         alt={item.type ?? 'kledingstuk'}
         loading="lazy"
+        onerror={(e) => imgFallback(e, item)}
       />
     {:else}
       <div class="ph" aria-hidden="true"><Icon name="shirt" size={40} /></div>

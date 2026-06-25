@@ -2,6 +2,7 @@
   import Chip from './Chip.svelte';
   import Icon from './Icon.svelte';
   import type { ItemDTO } from '$lib/server/serialize';
+  import { thumbSrc, imgFallback } from '$lib/client/images';
   import { SIZE_STRINGS } from '$lib/config';
 
   let { items, onpick }: { items: ItemDTO[]; onpick: (item: ItemDTO) => void } = $props();
@@ -28,10 +29,10 @@
     {/if}
     <div class="strip">
       {#each filtered as item (item.id)}
-        {@const thumb = item.thumb_url || item.cutout_url || item.display_url}
+        {@const thumb = thumbSrc(item)}
         <button class="pick" onclick={() => onpick(item)} aria-label={`Voeg ${item.type ?? 'item'} maat ${item.size} toe`}>
           {#if thumb}
-            <img src={thumb} alt="" />
+            <img src={thumb} alt="" onerror={(e) => imgFallback(e, item)} />
           {:else}
             <span class="ph"><Icon name="shirt" size={28} /></span>
           {/if}

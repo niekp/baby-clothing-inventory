@@ -1,11 +1,8 @@
-import { listEmbeddings, listDismissedPairs } from './db';
+import { listEmbeddings, listDismissedPairs, duplicateStateKey } from './db';
 import { histIntersection } from './colorhist';
 import { expandSize } from '$lib/config';
 
-// Een paar is alleen kandidaat als ZOWEL de vorm/categorie (CLIP-cosine) áls de
-// kleur (histogram-overlap) genoeg matchen. CLIP alleen verwart gelijk-gevormde
-// stukken van verschillende kleur; de kleur-gate dempt dat (empirisch: vals paar
-// kleur-overlap ~0.10, zelfde stuk ~0.87+). Beide tunable.
+// kandidaat = vorm-match (CLIP-cosine) én kleur-match (histogram-overlap); beide tunable
 const THRESHOLD = Number(process.env.DUP_THRESHOLD ?? 0.9);
 const COLOR_MIN = Number(process.env.DUP_COLOR_MIN ?? 0.4);
 
@@ -52,4 +49,13 @@ export function findDuplicatePairs(threshold = THRESHOLD): DuplicatePair[] {
   // gelijk type eerst, daarbinnen hoogste similariteit
   pairs.sort((p, q) => Number(q.sameType) - Number(p.sameType) || q.score - p.score);
   return pairs.map(({ a, b, score }) => ({ a, b, score }));
+}
+
+// Aantal kandidaat-paren voor de nav-badge. Gecachet op de staat-vingerafdruk zodat
+// de O(n²)-scan niet bij elke navigatie draait, alleen als er iets wijzigde.
+let _countCache: { key: string; count: number } | null = null;
+export function duplicateCount(): number {
+  const key = duplicateStateKey();
+  if (_countCache?.key !== key) _countCache = { key, count: findDuplicatePairs().length };
+  return _countCache.count;
 }
