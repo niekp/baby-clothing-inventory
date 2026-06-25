@@ -54,14 +54,10 @@
     stopStream();
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        // staande 3:4 verhouding = volle sensor-FOV in portret (16:9/landschap snijdt
-        // FOV/hoogte weg). aspectRatio stuurt de oriëntatie; resolutie ruim voor scherpte.
-        video: {
-          facingMode: facing,
-          aspectRatio: { ideal: 3 / 4 },
-          width: { ideal: 1536 },
-          height: { ideal: 2048 }
-        },
+        // 4:3 met landschap-getallen: Android Chrome draait de ratio mee met de
+        // schermstand → staand 3:4-frame met volle sensor-FOV (zoals de native foto).
+        // 16:9 gaf 9:16 (te smal); aspectRatio expliciet gaf juist landschap.
+        video: { facingMode: facing, width: { ideal: 3072 }, height: { ideal: 2304 } },
         audio: false
       });
     } catch (e) {
