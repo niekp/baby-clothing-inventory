@@ -54,9 +54,14 @@
     stopStream();
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        // 4:3 = volle sensor-FOV (16:9 snijdt de FOV smaller). Ruime resolutie voor
-        // scherpte; het echte beeldformaat lezen we daarna uit videoWidth/Height.
-        video: { facingMode: facing, width: { ideal: 2304 }, height: { ideal: 3072 } },
+        // staande 3:4 verhouding = volle sensor-FOV in portret (16:9/landschap snijdt
+        // FOV/hoogte weg). aspectRatio stuurt de oriëntatie; resolutie ruim voor scherpte.
+        video: {
+          facingMode: facing,
+          aspectRatio: { ideal: 3 / 4 },
+          width: { ideal: 1536 },
+          height: { ideal: 2048 }
+        },
         audio: false
       });
     } catch (e) {
