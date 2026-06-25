@@ -17,7 +17,7 @@
 
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import { canvasFromVideo, canvasIsBlack, canvasToJpegBlob } from '$lib/client/capture';
+  import { canvasFromVideo, canvasIsBlack, canvasToJpegBlob, type CropRect } from '$lib/client/capture';
 
   let { onstate }: { onstate?: (s: CamState) => void } = $props();
 
@@ -107,10 +107,10 @@
 
   // --- publieke API (via bind:this) ---
 
-  export async function grabFrame(): Promise<Blob | null> {
+  export async function grabFrame(crop?: CropRect): Promise<Blob | null> {
     if (status !== 'live') return null;
     try {
-      const canvas = canvasFromVideo(video);
+      const canvas = canvasFromVideo(video, crop);
       if (canvasIsBlack(canvas)) {
         status = 'dead';
         return null;

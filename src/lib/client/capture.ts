@@ -6,18 +6,54 @@ import type { ItemDTO } from '$lib/server/serialize';
 const MAX_DIM = 3000;
 const QUALITY = 0.92;
 
+// Crop-kader, genormaliseerd (0-1) t.o.v. het getoonde video-element.
+export interface CropRect {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
 // Tekent het huidige videoframe op een (geschaalde) canvas. Gooit als er nog geen frame is.
-export function canvasFromVideo(video: HTMLVideoElement, maxDim = MAX_DIM): HTMLCanvasElement {
+// Met crop: alleen dat (op het scherm aangegeven) deel; rekent de object-fit:cover-
+// transform terug naar echte videoframe-pixels.
+export function canvasFromVideo(
+  video: HTMLVideoElement,
+  crop?: CropRect,
+  maxDim = MAX_DIM
+): HTMLCanvasElement {
   const vw = video.videoWidth;
   const vh = video.videoHeight;
   if (!vw || !vh) throw new Error('geen videoframe');
-  const scale = Math.min(1, maxDim / Math.max(vw, vh));
+
+  let sx = 0;
+  let sy = 0;
+  let sw = vw;
+  let sh = vh;
+  if (crop) {
+    // het scherm toont een object-fit:cover-uitsnede van het frame
+    const cw = video.clientWidth || vw;
+    const ch = video.clientHeight || vh;
+    const s = Math.max(cw / vw, ch / vh); // cover-schaal
+    const offX = (vw * s - cw) / 2; // weggesneden rand links/boven (in scherm-px)
+    const offY = (vh * s - ch) / 2;
+    sx = (crop.x * cw + offX) / s;
+    sy = (crop.y * ch + offY) / s;
+    sw = (crop.w * cw) / s;
+    sh = (crop.h * ch) / s;
+    sx = Math.max(0, Math.min(sx, vw));
+    sy = Math.max(0, Math.min(sy, vh));
+    sw = Math.max(1, Math.min(sw, vw - sx));
+    sh = Math.max(1, Math.min(sh, vh - sy));
+  }
+
+  const scale = Math.min(1, maxDim / Math.max(sw, sh));
   const canvas = document.createElement('canvas');
-  canvas.width = Math.round(vw * scale);
-  canvas.height = Math.round(vh * scale);
+  canvas.width = Math.round(sw * scale);
+  canvas.height = Math.round(sh * scale);
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('geen 2d-context');
-  ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
   return canvas;
 }
 

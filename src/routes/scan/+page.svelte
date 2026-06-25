@@ -2,13 +2,21 @@
   import { onMount } from 'svelte';
   import CameraView, { type CamState } from '$lib/components/CameraView.svelte';
   import CaptureStrip, { type Capture } from '$lib/components/CaptureStrip.svelte';
+  import CropFrame from '$lib/components/CropFrame.svelte';
   import SizeSlider from '$lib/components/SizeSlider.svelte';
   import BottomSheet from '$lib/components/BottomSheet.svelte';
   import Button from '$lib/components/Button.svelte';
   import Icon from '$lib/components/Icon.svelte';
-  import { fileToNormalizedJpeg, uploadItem } from '$lib/client/capture';
+  import { fileToNormalizedJpeg, uploadItem, type CropRect } from '$lib/client/capture';
 
   const SIZE_KEY = 'bci.scan.size';
+  const CROP_KEY = 'bci.scan.crop';
+
+  // crop-kader: ruim default, onthouden tussen sessies
+  let crop = $state<CropRect>({ x: 0.08, y: 0.06, w: 0.84, h: 0.88 });
+  function saveCrop(r: CropRect) {
+    localStorage.setItem(CROP_KEY, JSON.stringify(r));
+  }
 
   let cam = $state<CameraView>();
   let camState = $state<CamState>({
@@ -39,6 +47,12 @@
   onMount(() => {
     const saved = localStorage.getItem(SIZE_KEY);
     if (saved) size = saved;
+    try {
+      const c = localStorage.getItem(CROP_KEY);
+      if (c) crop = JSON.parse(c);
+    } catch {
+      /* default crop */
+    }
   });
 
   function showToast(msg: string) {
@@ -73,7 +87,7 @@
     if (shutterBusy) return; // dubbel-tik → geen dubbele opname
     shutterBusy = true;
     try {
-      const blob = await cam?.grabFrame();
+      const blob = await cam?.grabFrame(crop);
       if (!blob) {
         showToast(
           camState.status === 'dead' ? 'Camera onderbroken — verbind opnieuw' : 'Geen frame'
@@ -169,6 +183,9 @@
 <div class="scan">
   {#if !uploadMode}
     <CameraView bind:this={cam} onstate={(s) => (camState = s)} />
+    {#if camState.status === 'live'}
+      <CropFrame bind:rect={crop} onchange={saveCrop} />
+    {/if}
   {/if}
 
   <!-- topbar: sluiten -->
