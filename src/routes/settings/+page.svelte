@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invalidateAll } from '$app/navigation';
+  import { page } from '$app/state';
   import Button from '$lib/components/Button.svelte';
   import Chip from '$lib/components/Chip.svelte';
   import Icon from '$lib/components/Icon.svelte';
@@ -8,6 +9,9 @@
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
+
+  // dubbel-kandidaten (uit de layout-load)
+  let dupCount = $derived(Number(page.data.duplicateCount) || 0);
 
   let newName = $state('');
   let msg = $state<string | null>(null);
@@ -102,7 +106,10 @@
     Vind kledingstukken die je mogelijk twee keer hebt gefotografeerd, op beeldgelijkenis.
     Jij bevestigt elk paar.
   </p>
-  <Button variant="ghost" href="/duplicates"><Icon name="shapes" size={16} /> Dubbelen bekijken</Button>
+  <Button variant="ghost" href="/duplicates">
+    <Icon name="shapes" size={16} /> Dubbelen bekijken
+    {#if dupCount > 0}<span class="count">{dupCount}</span>{/if}
+  </Button>
 </section>
 
 <section>
@@ -163,5 +170,17 @@
   }
   .add .input {
     flex: 1;
+  }
+  .count {
+    display: inline-block;
+    min-width: 18px;
+    padding: 0 5px;
+    border-radius: 999px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 11px;
+    font-weight: 700;
+    line-height: 18px;
+    text-align: center;
   }
 </style>
