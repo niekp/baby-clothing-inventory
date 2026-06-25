@@ -12,6 +12,7 @@
     torchOn: boolean;
     torchSupported: boolean;
     facing: 'environment' | 'user';
+    aspect: number; // breedte/hoogte van het cameraframe (voor een passend venster)
   }
 </script>
 
@@ -27,10 +28,11 @@
   let torchOn = $state(false);
   let torchSupported = $state(false);
   let facing = $state<'environment' | 'user'>('environment');
+  let aspect = $state(0.75); // default 3:4 staand tot het frame bekend is
 
   // Meld state-wijzigingen aan de ouder.
   $effect(() => {
-    onstate?.({ status, torchOn, torchSupported, facing });
+    onstate?.({ status, torchOn, torchSupported, facing, aspect });
   });
 
   function stopStream() {
@@ -52,8 +54,9 @@
     stopStream();
     try {
       stream = await navigator.mediaDevices.getUserMedia({
-        // 4K-ideaal: de camera levert 't hoogste dat 'ie kan (≤4K) → scherper frame.
-        video: { facingMode: facing, width: { ideal: 3840 }, height: { ideal: 2160 } },
+        // 4:3 = volle sensor-FOV (16:9 snijdt de FOV smaller). Ruime resolutie voor
+        // scherpte; het echte beeldformaat lezen we daarna uit videoWidth/Height.
+        video: { facingMode: facing, width: { ideal: 2304 }, height: { ideal: 3072 } },
         audio: false
       });
     } catch (e) {
@@ -68,6 +71,10 @@
       return;
     }
     video.srcObject = stream;
+    // werkelijke frame-verhouding lezen zodra bekend (voor een passend venster)
+    video.onloadedmetadata = () => {
+      if (video.videoWidth && video.videoHeight) aspect = video.videoWidth / video.videoHeight;
+    };
     torchOn = false;
     const track = stream.getVideoTracks()[0];
     torchSupported = Boolean(

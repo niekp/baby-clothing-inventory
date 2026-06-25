@@ -23,7 +23,8 @@
     status: 'requesting',
     torchOn: false,
     torchSupported: false,
-    facing: 'environment'
+    facing: 'environment',
+    aspect: 0.75
   });
 
   let size = $state('68');
@@ -186,10 +187,13 @@
 <div class="scan">
   <div class="stage">
   {#if !uploadMode}
-    <CameraView bind:this={cam} onstate={(s) => (camState = s)} />
-    {#if camState.status === 'live'}
-      <CropFrame bind:rect={crop} onchange={saveCrop} />
-    {/if}
+    <!-- venster op de camera-verhouding: toont het hele frame (volle FOV) -->
+    <div class="viewport" style="aspect-ratio: {camState.aspect || 0.75}">
+      <CameraView bind:this={cam} onstate={(s) => (camState = s)} />
+      {#if camState.status === 'live'}
+        <CropFrame bind:rect={crop} onchange={saveCrop} />
+      {/if}
+    </div>
   {/if}
 
   <!-- topbar: sluiten -->
@@ -278,12 +282,21 @@
     display: flex;
     flex-direction: column;
   }
-  /* camerablok: crop-kader heeft hier de volle hoogte, niets overlapt */
+  /* camerablok: toont het hele frame, gecentreerd; crop-kader heeft de volle FOV */
   .stage {
     position: relative;
     flex: 1;
     min-height: 0;
     overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .viewport {
+    position: relative;
+    max-width: 100%;
+    max-height: 100%;
+    width: 100%;
   }
   .topbar {
     position: absolute;
