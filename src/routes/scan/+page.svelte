@@ -12,20 +12,10 @@
   const SIZE_KEY = 'bci.scan.size';
   const CROP_KEY = 'bci.scan.crop';
 
-  // hoogteband (volle breedte): ruime default, onthouden tussen sessies
-  let crop = $state<CropRect>({ x: 0, y: 0.08, w: 1, h: 0.7 });
+  // hoogteband (volle breedte) over het camerablok: ruime default, onthouden tussen sessies
+  let crop = $state<CropRect>({ x: 0, y: 0.05, w: 1, h: 0.9 });
   function saveCrop(r: CropRect) {
     localStorage.setItem(CROP_KEY, JSON.stringify(r));
-  }
-
-  // onderrand van de band mag niet onder de bedieningsbalk komen (vrij sleepgebied)
-  let bottombarEl = $state<HTMLElement>();
-  let maxBottom = $state(0.78);
-  function measureBar() {
-    if (!bottombarEl) return;
-    // kleine marge zodat de hele sleepbalk vrij van de bedieningsbalk blijft
-    maxBottom = bottombarEl.getBoundingClientRect().top / window.innerHeight - 0.04;
-    if (crop.y + crop.h > maxBottom) crop = { ...crop, h: Math.max(0.12, maxBottom - crop.y) };
   }
 
   let cam = $state<CameraView>();
@@ -66,14 +56,6 @@
     } catch {
       /* default crop */
     }
-    measureBar();
-    const ro = bottombarEl ? new ResizeObserver(measureBar) : null;
-    if (bottombarEl && ro) ro.observe(bottombarEl);
-    window.addEventListener('resize', measureBar);
-    return () => {
-      ro?.disconnect();
-      window.removeEventListener('resize', measureBar);
-    };
   });
 
   function showToast(msg: string) {
@@ -202,10 +184,11 @@
 </script>
 
 <div class="scan">
+  <div class="stage">
   {#if !uploadMode}
     <CameraView bind:this={cam} onstate={(s) => (camState = s)} />
     {#if camState.status === 'live'}
-      <CropFrame bind:rect={crop} {maxBottom} onchange={saveCrop} />
+      <CropFrame bind:rect={crop} onchange={saveCrop} />
     {/if}
   {/if}
 
@@ -230,8 +213,10 @@
     </div>
   {/if}
 
+  </div>
+
   <!-- onderbalk: maat-slider + torch · shutter · flip + strip -->
-  <div class="bottombar" bind:this={bottombarEl}>
+  <div class="bottombar">
     <div class="size-control">
       <SizeSlider current={size} onpick={pickSize} />
     </div>
@@ -290,6 +275,15 @@
     inset: 0;
     background: #000;
     color: #fff;
+    display: flex;
+    flex-direction: column;
+  }
+  /* camerablok: crop-kader heeft hier de volle hoogte, niets overlapt */
+  .stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
   }
   .topbar {
     position: absolute;
@@ -315,34 +309,24 @@
     font-size: var(--fs-lg);
   }
   .bottombar {
-    position: absolute;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    z-index: 10;
+    flex: 0 0 auto;
     display: flex;
     flex-direction: column;
     gap: var(--space-3);
-    padding: var(--space-4);
-    padding-bottom: calc(env(safe-area-inset-bottom) + var(--space-4));
-    background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent);
-    pointer-events: none; /* lege delen laten taps door naar het crop-kader eronder */
+    padding: var(--space-3) var(--space-4);
+    padding-bottom: calc(env(safe-area-inset-bottom) + var(--space-3));
+    background: #000;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
   }
-  /* alleen de echte bedieningselementen vangen taps; rest valt door naar de band */
   .size-control {
-    background: rgba(0, 0, 0, 0.45);
+    background: rgba(255, 255, 255, 0.06);
     border-radius: var(--radius);
-    padding: var(--space-2) var(--space-4) var(--space-3);
-    pointer-events: auto;
+    padding: var(--space-2) var(--space-4);
   }
   .controls {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    pointer-events: none; /* tussen de knoppen door naar de band */
-  }
-  .strip-wrap {
-    pointer-events: auto;
   }
   .ctrl {
     width: 52px;
