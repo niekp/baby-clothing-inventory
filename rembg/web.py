@@ -1,85 +1,74 @@
 import asyncio
-import gc
 import io
 import os
 import time
 from contextlib import asynccontextmanager
 
-import numpy as np
-import onnxruntime as ort
+# Alleen lichte imports op moduleniveau → vers proces ~60MB en uvicorn meteen klaar.
+# De zware libs (rembg/onnxruntime/numpy/PIL) laden lazy bij de eerste scan.
 from fastapi import FastAPI, Query, Request, Response
-from PIL import Image
-from rembg import new_session, remove
 
 DEFAULT_MODEL = os.environ.get("REMBG_MODEL", "isnet-general-use")
-
-# Modellen lazy laden en na inactiviteit weer ontladen (geheugen vrijgeven). Wie
-# zelden scant houdt zo geen ~1-2GB vast.
-MODEL_TTL = float(os.environ.get("MODEL_TTL_SECONDS", "3600"))  # 1 uur idle → vrijgeven
-
-# CLIP ViT-B/32 vision-encoder (embeddings voor dubbel-detectie).
 CLIP_PATH = "/models/clip-vision.onnx"
-CLIP_MEAN = np.array([0.48145466, 0.4578275, 0.40821073], dtype=np.float32)
-CLIP_STD = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float32)
-_clip = None
+# Na deze tijd zonder gebruik sluit het proces af → docker herstart het vers
+# (geheugen, inclusief imports, volledig vrij). Wie zelden scant houdt ~60MB vast.
+IDLE_TTL = float(os.environ.get("MODEL_TTL_SECONDS", "3600"))
 
-# Alleen de in het image gebakken modellen toestaan; een onbekende naam zou
-# anders new_session() een download laten proberen (en is user-controlled via de API).
 ALLOWED_MODELS = {"isnet-general-use", "birefnet-general"}
 
 _sessions = {}
-_last_used = {}  # key -> monotone tijd van laatste gebruik ('clip' + modelnamen)
+_clip = None
+_last_used = time.monotonic()
+
+
+def _touch():
+    global _last_used
+    _last_used = time.monotonic()
 
 
 def get_session(model: str):
+    from rembg import new_session
+
     if model not in _sessions:
         _sessions[model] = new_session(model)
-    _last_used[model] = time.monotonic()
+    _touch()
     return _sessions[model]
 
 
 def get_clip():
     global _clip
     if _clip is None:
+        import onnxruntime as ort
+
         _clip = ort.InferenceSession(CLIP_PATH, providers=["CPUExecutionProvider"])
-    _last_used["clip"] = time.monotonic()
+    _touch()
     return _clip
 
 
-def _evict_idle():
-    global _clip
-    now = time.monotonic()
-    freed = False
-    for model in list(_sessions):
-        if now - _last_used.get(model, 0) > MODEL_TTL:
-            del _sessions[model]
-            _last_used.pop(model, None)
-            freed = True
-    if _clip is not None and now - _last_used.get("clip", 0) > MODEL_TTL:
-        _clip = None
-        _last_used.pop("clip", None)
-        freed = True
-    if freed:
-        gc.collect()  # onnxruntime-arenas vrijgeven
+def clip_preprocess(data: bytes):
+    import numpy as np
+    from PIL import Image
 
-
-def clip_preprocess(data: bytes) -> np.ndarray:
     img = Image.open(io.BytesIO(data)).convert("RGB").resize((224, 224), Image.BICUBIC)
     arr = np.asarray(img, dtype=np.float32) / 255.0
-    arr = (arr - CLIP_MEAN) / CLIP_STD
+    mean = np.array([0.48145466, 0.4578275, 0.40821073], dtype=np.float32)
+    std = np.array([0.26862954, 0.26130258, 0.27577711], dtype=np.float32)
+    arr = (arr - mean) / std
     return arr.transpose(2, 0, 1)[None].astype(np.float32)  # (1,3,224,224)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # geen eager model-load: uvicorn (en /health) zijn direct klaar → snel healthy.
-    # achtergrondtaak ontlaadt idle modellen.
-    async def evictor():
+    # achtergrondtaak: na IDLE_TTL zonder gebruik (en alleen als er iets geladen is)
+    # het proces afsluiten zodat docker het vers herstart → alle geheugen vrij.
+    async def reaper():
         while True:
-            await asyncio.sleep(min(MODEL_TTL, 300))
-            _evict_idle()
+            await asyncio.sleep(min(IDLE_TTL, 300))
+            loaded = bool(_sessions) or _clip is not None
+            if loaded and time.monotonic() - _last_used > IDLE_TTL:
+                os._exit(0)
 
-    task = asyncio.create_task(evictor())
+    task = asyncio.create_task(reaper())
     try:
         yield
     finally:
@@ -99,6 +88,8 @@ async def cutout(request: Request, model: str | None = Query(default=None)):
     m = model or DEFAULT_MODEL
     if m not in ALLOWED_MODELS:
         return Response(status_code=400, content=b"unknown model")
+    from rembg import remove
+
     data = await request.body()
     out = remove(data, session=get_session(m))
     return Response(content=out, media_type="image/png")
@@ -106,6 +97,8 @@ async def cutout(request: Request, model: str | None = Query(default=None)):
 
 @app.post("/embed")
 async def embed(request: Request):
+    import numpy as np
+
     data = await request.body()
     if not data:
         return Response(status_code=400, content=b"empty body")
