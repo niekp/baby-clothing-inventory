@@ -237,7 +237,7 @@
         <Icon name="switch-camera" size={24} />
       </button>
     </div>
-    <CaptureStrip {captures} onthumb={openThumb} />
+    <div class="strip-wrap"><CaptureStrip {captures} onthumb={openThumb} /></div>
   </div>
 
   {#if toast}
@@ -283,8 +283,10 @@
     align-items: center;
     justify-content: flex-end;
     padding: calc(env(safe-area-inset-top) + var(--space-3)) var(--space-4) var(--space-3);
+    pointer-events: none; /* laat de bovenrand van de band door */
   }
   .close {
+    pointer-events: auto;
     width: 40px;
     height: 40px;
     display: flex;
@@ -306,16 +308,23 @@
     padding: var(--space-4);
     padding-bottom: calc(env(safe-area-inset-bottom) + var(--space-4));
     background: linear-gradient(to top, rgba(0, 0, 0, 0.55), transparent);
+    pointer-events: none; /* lege delen laten taps door naar het crop-kader eronder */
   }
+  /* alleen de echte bedieningselementen vangen taps; rest valt door naar de band */
   .size-control {
     background: rgba(0, 0, 0, 0.45);
     border-radius: var(--radius);
     padding: var(--space-2) var(--space-4) var(--space-3);
+    pointer-events: auto;
   }
   .controls {
     display: flex;
     align-items: center;
     justify-content: space-between;
+    pointer-events: none; /* tussen de knoppen door naar de band */
+  }
+  .strip-wrap {
+    pointer-events: auto;
   }
   .ctrl {
     width: 52px;
@@ -324,6 +333,7 @@
     border: none;
     background: rgba(255, 255, 255, 0.18);
     font-size: 22px;
+    pointer-events: auto;
   }
   .ctrl.on {
     background: var(--accent);
@@ -338,6 +348,7 @@
     background: #fff;
     border: 5px solid rgba(255, 255, 255, 0.55);
     box-shadow: 0 0 0 2px #000 inset;
+    pointer-events: auto;
   }
   .shutter:active {
     transform: scale(0.94);
