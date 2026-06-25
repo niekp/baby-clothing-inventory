@@ -5,11 +5,11 @@ import type { AiSuggestions } from '$lib/types';
 const PROMPT = [
   "You are tagging one photo of a baby's or child's clothing item.",
   'Look at the photo and pick the single best value for each field from the allowed options.',
-  'type: onesie, playsuit, trousers, shirt, sweater, dress, skirt, shorts, jacket, pyjamas, socks, hat.',
+  'type: onesie, playsuit, trousers, shirt, sweater, dress, skirt, shorts, jacket.',
   'color: white, black, grey, beige, brown, red, orange, yellow, green, blue, purple, pink, multicolor.',
   'length means sleeve length for tops/rompers/bodysuits/sweaters/dresses, and leg length for trousers/shorts.',
   'Use "long" only for long sleeves or full-length legs; "short" for short or sleeveless (e.g. t-shirt,',
-  'spaghetti-strap or tank romper, shorts); "na" when it does not apply (e.g. socks, hat).',
+  'spaghetti-strap or tank romper, shorts); "na" when it does not apply.',
   'season: "summer", "winter", "mid-season", or "all-season".',
   'color is the single dominant color.',
   'Answer with the JSON object only.'
@@ -25,10 +25,7 @@ const TYPE_MAP: Record<string, string> = {
   dress: 'jurk',
   skirt: 'rok',
   shorts: 'shorts',
-  jacket: 'jas',
-  pyjamas: 'pyjama',
-  socks: 'sokken',
-  hat: 'muts'
+  jacket: 'jas'
 };
 const LENGTH_MAP: Record<string, string> = { long: 'lang', short: 'kort', na: 'nvt' };
 const SEASON_MAP: Record<string, string> = {

@@ -92,10 +92,7 @@ export const TYPES = [
   'jurk',
   'rok',
   'shorts',
-  'jas',
-  'pyjama',
-  'sokken',
-  'muts'
+  'jas'
 ] as const;
 
 export const LENGTHS = ['lang', 'kort', 'nvt'] as const;
