@@ -3,11 +3,13 @@ import { mkdirSync } from 'node:fs';
 import { readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-export type Variant = 'orig' | 'disp' | 'cutout' | 'outfit';
-const VARIANTS: Variant[] = ['orig', 'disp', 'cutout', 'outfit'];
+export type Variant = 'orig' | 'disp' | 'cutout' | 'thumb' | 'outfit';
+const VARIANTS: Variant[] = ['orig', 'disp', 'cutout', 'thumb', 'outfit'];
 
 const DISPLAY_MAX = 1024;
 const DISPLAY_QUALITY = 80;
+const THUMB_MAX = 384; // kleine transparante thumbnail voor grids/lijsten
+const THUMB_QUALITY = 78;
 
 function baseDir(): string {
   return process.env.PHOTOS_DIR ?? 'data/photos';
@@ -116,11 +118,20 @@ export async function normalizeCutout(png: Uint8Array): Promise<Uint8Array> {
   return new Uint8Array(out);
 }
 
-// Schrijft een cutout-PNG (transparante achtergrond) en geeft de bestandsnaam terug.
+// Schrijft een cutout-PNG (transparante achtergrond) + een kleine transparante
+// thumbnail-webp (voor grids/lijsten). Geeft de cutout-bestandsnaam terug.
 export async function saveCutout(id: number, png: Uint8Array): Promise<string> {
   ensureDirs();
   const name = `${id}.png`;
   await writeFile(join(baseDir(), 'cutout', name), png);
+  try {
+    await sharp(Buffer.from(png))
+      .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: THUMB_QUALITY, alphaQuality: 90 })
+      .toFile(join(baseDir(), 'thumb', `${id}.webp`));
+  } catch {
+    /* thumb is optioneel; grid valt terug op de cutout */
+  }
   return name;
 }
 
@@ -144,10 +155,13 @@ export async function deletePhotos(names: {
   photo_display?: string | null;
   cutout_path?: string | null;
 }): Promise<void> {
+  // thumb deelt de basisnaam met de cutout (<id>.png → <id>.webp)
+  const thumbName = names.cutout_path ? names.cutout_path.replace(/\.png$/, '.webp') : null;
   const targets: [Variant, string | null | undefined][] = [
     ['orig', names.photo_orig],
     ['disp', names.photo_display],
-    ['cutout', names.cutout_path]
+    ['cutout', names.cutout_path],
+    ['thumb', thumbName]
   ];
   await Promise.all(
     targets

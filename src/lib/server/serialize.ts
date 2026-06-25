@@ -25,6 +25,7 @@ export function serializeOutfit(outfit: Outfit): OutfitDTO {
 export interface ItemDTO extends Item {
   display_url: string | null;
   cutout_url: string | null;
+  thumb_url: string | null; // kleine transparante thumbnail (grids/lijsten)
   orig_download_url: string | null;
   suggestions: AiSuggestions | null;
   seasons: string[]; // geparst uit de season-JSON-kolom
@@ -59,6 +60,8 @@ export function serializeItem(item: Item): ItemDTO {
     ...rest,
     display_url: photoUrl('disp', item.photo_display),
     cutout_url: photoUrl('cutout', item.cutout_path),
+    // thumb deelt de basisnaam met de cutout; bestaat alleen als er een cutout is
+    thumb_url: item.cutout_path ? photoUrl('thumb', `${item.id}.webp`) : null,
     orig_download_url: item.photo_orig ? `/api/items/${item.id}/original` : null,
     suggestions,
     seasons: parseSeasons(item.season)

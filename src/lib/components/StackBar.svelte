@@ -52,7 +52,7 @@
   {:else}
     <div class="thumbs">
       {#each stacked as item (item.id)}
-        {@const thumb = item.cutout_url || item.display_url}
+        {@const thumb = item.thumb_url || item.cutout_url || item.display_url}
         <div class="thumb">
           {#if thumb}<img src={thumb} alt="" />{:else}<span class="ph"><Icon name="shirt" size={24} /></span>{/if}
           <span class="sz">{item.size}</span>

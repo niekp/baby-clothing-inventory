@@ -14,11 +14,11 @@
 
 <div class="card" class:marked={marker}>
   <div class="photo">
-    {#if item.cutout_url || item.display_url}
-      <!-- cutout (vrijstaand, geen achtergrond-ruis) heeft voorkeur; anders de displayfoto -->
+    {#if item.thumb_url || item.cutout_url || item.display_url}
+      <!-- kleine transparante thumb voor de grid; val terug op cutout/displayfoto -->
       <img
-        src={item.cutout_url ?? item.display_url}
-        class:cut={item.cutout_url}
+        src={item.thumb_url ?? item.cutout_url ?? item.display_url}
+        class:cut={item.thumb_url || item.cutout_url}
         alt={item.type ?? 'kledingstuk'}
         loading="lazy"
       />

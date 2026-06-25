@@ -62,8 +62,8 @@
           {@const other = idx === 0 ? pair.b : pair.a}
           <div class="side">
             <a class="photo" href={`/items/${item.id}`}>
-              {#if item.cutout_url || item.display_url}
-                <img src={item.cutout_url ?? item.display_url} alt="" />
+              {#if item.thumb_url || item.cutout_url || item.display_url}
+                <img src={item.thumb_url ?? item.cutout_url ?? item.display_url} alt="" />
               {:else}
                 <span class="ph"><Icon name="shirt" size={32} /></span>
               {/if}

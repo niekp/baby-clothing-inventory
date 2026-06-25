@@ -28,7 +28,7 @@
     {/if}
     <div class="strip">
       {#each filtered as item (item.id)}
-        {@const thumb = item.cutout_url || item.display_url}
+        {@const thumb = item.thumb_url || item.cutout_url || item.display_url}
         <button class="pick" onclick={() => onpick(item)} aria-label={`Voeg ${item.type ?? 'item'} maat ${item.size} toe`}>
           {#if thumb}
             <img src={thumb} alt="" />
