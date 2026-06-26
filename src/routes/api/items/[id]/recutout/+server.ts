@@ -5,7 +5,7 @@ import { readPhoto } from '$lib/server/photos';
 import { generateCutout } from '$lib/server/worker';
 import { serializeItem } from '$lib/server/serialize';
 
-// Genereert de cutout opnieuw (inline). Model optioneel; alleen isnet toegestaan.
+// Genereert de cutout opnieuw (inline). isnet (snel) of birefnet-general (scherper, ~2-3 min).
 export const POST: RequestHandler = async ({ params, request }) => {
   const id = Number(params.id);
   if (!Number.isInteger(id) || id <= 0) error(400, 'Ongeldig id');
@@ -13,7 +13,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
   if (!item) error(404, 'Niet gevonden');
   if (!item.photo_display) error(409, 'Geen display-foto om te verwerken');
 
-  const ALLOWED = new Set(['isnet-general-use']); // birefnet OOM-killt de sidecar op de NUC
+  const ALLOWED = new Set(['isnet-general-use', 'birefnet-general']);
   let body: { model?: unknown } = {};
   try {
     body = (await request.json()) as { model?: unknown };

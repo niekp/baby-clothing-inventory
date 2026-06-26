@@ -27,6 +27,7 @@
 
   let zoom = $state(false);
   let saving = $state(false);
+  let recutting = $state(false);
   let msg = $state<string | null>(null);
 
   const sameSet = (a: string[], b: string[]) =>
@@ -80,6 +81,26 @@
     patch({ ai_status: 'done' });
   }
 
+  // Scherpere cutout via birefnet (zwaar, ~2-3 min); alleen op verzoek voor lastige foto's.
+  async function sharperCutout() {
+    if (recutting) return;
+    recutting = true;
+    msg = null;
+    try {
+      const res = await fetch(`/api/items/${data.item.id}/recutout`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'birefnet-general' })
+      });
+      if (res.ok) await invalidateAll();
+      else msg = 'Scherpere cutout mislukt';
+    } catch {
+      msg = 'Scherpere cutout mislukt (duurde te lang?)';
+    } finally {
+      recutting = false;
+    }
+  }
+
   async function del() {
     if (!confirm('Dit item verwijderen?')) return;
     const res = await fetch(`/api/items/${data.item.id}`, { method: 'DELETE' });
@@ -124,6 +145,13 @@
   </div>
 
   <div class="extra">
+    <button class="recut" onclick={sharperCutout} disabled={recutting}>
+      {#if recutting}
+        <Icon name="loader" size={16} spin /> Scherpere cutout… (kan een paar minuten duren)
+      {:else}
+        <Icon name="shapes" size={16} /> Scherpere cutout
+      {/if}
+    </button>
     <button class="del" onclick={del}>
       <Icon name="trash" size={16} /> Verwijderen
     </button>
@@ -210,8 +238,24 @@
   }
   .extra {
     display: flex;
-    justify-content: flex-end;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-3);
     margin-top: var(--space-5);
+  }
+  .recut {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-size: var(--fs-sm);
+    padding: var(--space-2) var(--space-3);
+  }
+  .recut:disabled {
+    color: var(--text-muted);
   }
   .del {
     display: inline-flex;

@@ -1,5 +1,6 @@
 const REMBG_URL = process.env.REMBG_URL ?? 'http://rembg:28872';
-const TIMEOUT_MS = 60_000; // ruim genoeg voor birefnet-general (~47s)
+const TIMEOUT_MS = 60_000; // isnet (~2s) ruim
+const BIREFNET_TIMEOUT_MS = 240_000; // birefnet-general: trage CPU + eerste call model-download
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const CONN_CODES = new Set(['ECONNREFUSED', 'ENOTFOUND', 'ECONNRESET', 'EAI_AGAIN']);
@@ -34,7 +35,8 @@ export async function cutout(
 ): Promise<Uint8Array<ArrayBuffer>> {
   return withConnRetry(async () => {
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+    const timeout = model === 'birefnet-general' ? BIREFNET_TIMEOUT_MS : TIMEOUT_MS;
+    const timer = setTimeout(() => controller.abort(), timeout);
     try {
       const url = model
         ? `${REMBG_URL}/cutout?model=${encodeURIComponent(model)}`
