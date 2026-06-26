@@ -4,6 +4,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import sharp from 'sharp';
 
+vi.hoisted(() => (process.env.WORKER_TAG_RETRY_MS = '0')); // retry zonder echte wachttijd
+
 // AI-tagging + sidecar gemockt zodat de worker zonder netwerk testbaar is
 vi.mock('./ai', () => ({ tagImage: vi.fn() }));
 vi.mock('./rembg', () => ({
@@ -53,14 +55,27 @@ describe('processOne', () => {
     expect(JSON.parse(item.ai_suggestions!)).toEqual({ type: 'broek', color: 'groen' });
   });
 
-  it('marks failed when tagging throws', async () => {
+  it('marks failed when tagging throws twice (after one retry)', async () => {
     const id = await itemWithPhoto();
     vi.mocked(tagImage).mockRejectedValue(new Error('boom'));
     await processOne();
     expect(getItem(id)!.ai_status).toBe('failed');
+    expect(tagImage).toHaveBeenCalledTimes(2);
   });
 
-  it('finishes a photo-less processing item as done without calling ollama', async () => {
+  it('retries once and succeeds on the second attempt', async () => {
+    const id = await itemWithPhoto();
+    vi.mocked(tagImage)
+      .mockRejectedValueOnce(new Error('transient'))
+      .mockResolvedValueOnce({ type: 'trui', color: 'blauw' });
+    await processOne();
+    expect(tagImage).toHaveBeenCalledTimes(2);
+    const item = getItem(id)!;
+    expect(item.ai_status).toBe('suggested');
+    expect(JSON.parse(item.ai_suggestions!)).toEqual({ type: 'trui', color: 'blauw' });
+  });
+
+  it('finishes a photo-less processing item as done without calling the AI', async () => {
     const item = createItem({ size: '74', ai_status: 'processing' });
     await processOne();
     expect(getItem(item.id)!.ai_status).toBe('done');

@@ -1,7 +1,7 @@
 # baby-clothing-inventory
 
 Een SvelteKit full-stack PWA om kinderkleding te inventariseren: hoog-tempo scannen
-(foto + maat), async AI-verrijking via de lokale ollama (`moondream`), kledingkast
+(foto + maat), async AI-verrijking via OpenRouter (Gemini 2.5 Flash-Lite), kledingkast
 met filters/filtersets, heatmap maat × type, en een outfit-creator (vrijstaande
 cutouts via een rembg-sidecar, gecombineerd op een vrij canvas).
 
@@ -16,19 +16,9 @@ LAN/Tailscale-only, geen auth (netwerk = de beveiliging).
   PNG met alpha. Modellen **in het image gebakken**: `isnet-general-use` (eager,
   ~2s, behoudt dunne bandjes) + `birefnet-general` (on-demand "verbeter cutout",
   ~47s). Alleen intern bereikbaar; de app praat 'm aan op `http://rembg:28872`.
-- **ollama**: draait als losse container (services-rol), gebonden op
-  `127.0.0.1:11434`. De app bereikt 'm via het gedeelde docker-netwerk **`ollama-net`**
-  op servicenaam `http://ollama:11434` (de docker-rol maakt dat netwerk aan).
+- **AI-tagging**: via OpenRouter (`google/gemini-2.5-flash-lite`); `OPENROUTER_API_KEY`
+  vereist. Geen lokale model-server meer.
 - **Data** in `data/` (overleeft re-deploys): `app.db`, `photos/{orig,disp,cutout,outfit}/`.
-
-## Vereisten op de NUC
-
-- **moondream** moet op de ollama-container staan:
-  `docker exec ollama ollama pull moondream` (staat er sinds het vooronderzoek;
-  niet via ansible afgedwongen).
-- Het gedeelde netwerk `ollama-net` wordt door de `docker`-rol aangemaakt; ollama
-  sluit erop aan (services-rol). Een selectieve `--tags apps`/`--tags services`-deploy
-  maakt het netwerk ook aan (de task draait onder die tags).
 
 ## HTTPS vereist voor de live camera
 
@@ -69,8 +59,8 @@ npm test             # vitest (datalaag, foto's, filters, worker, outfits, canva
 npm run build        # productie-build (adapter-node)
 ```
 
-Env (zie `docker-compose.yml` defaults): `PORT`, `OLLAMA_URL`, `OLLAMA_MODEL`,
-`OLLAMA_THREADS`, `REMBG_URL`, `REMBG_MODEL`, `DATABASE_PATH`, `PHOTOS_DIR`, `HOST`, `TZ`.
+Env (zie `docker-compose.yml` defaults): `PORT`, `OPENROUTER_API_KEY`,
+`OPENROUTER_MODEL`, `REMBG_URL`, `REMBG_MODEL`, `DATABASE_PATH`, `PHOTOS_DIR`, `HOST`, `TZ`.
 
 ## Browser-ondersteuning
 

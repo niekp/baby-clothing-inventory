@@ -17,6 +17,7 @@ import { tagImage } from './ai';
 import { cutout } from './rembg';
 
 const IDLE_MS = Number(process.env.WORKER_IDLE_MS ?? 3000);
+const TAG_RETRY_MS = Number(process.env.WORKER_TAG_RETRY_MS ?? 2000);
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -43,7 +44,16 @@ export async function processOne(): Promise<boolean> {
   // tag op de geflatten cutout (val terug op displayfoto bij cutout-fout)
   try {
     const jpeg = await pngToJpeg(cut ?? file.data);
-    const suggestions = await tagImage(jpeg.toString('base64'));
+    const b64 = jpeg.toString('base64');
+    let suggestions;
+    try {
+      suggestions = await tagImage(b64);
+    } catch (e1) {
+      // transiënt (timeout/rate-limit/hapering): 1x opnieuw; tweede fout → failed via outer catch
+      console.warn(`[worker] item ${item.id} tagging-poging 1 mislukt, retry over ${TAG_RETRY_MS}ms:`, e1);
+      await sleep(TAG_RETRY_MS);
+      suggestions = await tagImage(b64);
+    }
     if (!finishTagging(item.id, JSON.stringify(suggestions))) {
       console.info(`[worker] item ${item.id} ondertussen handmatig afgehandeld — AI-resultaat genegeerd`);
     }
