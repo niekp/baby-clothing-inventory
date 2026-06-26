@@ -45,7 +45,7 @@ services:
       - default                 # alleen intern bereikbaar (app via servicenaam)
     deploy:
       resources:
-        limits: { cpus: '2', memory: 2G }
+        limits: { cpus: '2', memory: 7G }   # birefnet-general piekt ~5.5G; isnet blijft ~1G
         reservations: { cpus: '0.5', memory: 512M }
     healthcheck:
       # lichte imports → uvicorn binnen seconden klaar; snel healthy.
