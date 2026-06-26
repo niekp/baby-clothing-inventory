@@ -66,9 +66,15 @@ export const MIGRATIONS: Migration[] = [
   },
   {
     // item.cutout_job: cutout-wachtrij ('queued:<model>'/'working:<model>'/NULL). Geen CHECK
-    // (cutout_status-CHECK widen zou een tabel-rebuild vergen); guarded ALTER volstaat.
+    // (cutout_status-CHECK widen zou een tabel-rebuild vergen). Index hier (niet in SCHEMA:
+    // dat draait vóór de migraties → kolom bestaat nog niet op bestaande DB's).
     name: 'add-item-cutout-job',
-    up: (db) => addColumnIfMissing(db, 'item', 'cutout_job', 'TEXT')
+    up: (db) => {
+      addColumnIfMissing(db, 'item', 'cutout_job', 'TEXT');
+      db.prepare(
+        'CREATE INDEX IF NOT EXISTS idx_item_cutout_job ON item(cutout_job) WHERE cutout_job IS NOT NULL'
+      ).run();
+    }
   }
 ];
 

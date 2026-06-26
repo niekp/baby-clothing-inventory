@@ -68,7 +68,6 @@ CREATE INDEX IF NOT EXISTS idx_item_claim ON item(ai_status, created_at);
 CREATE INDEX IF NOT EXISTS idx_item_created ON item(created_at);
 CREATE INDEX IF NOT EXISTS idx_outfit_item_outfit ON outfit_item(outfit_id);
 CREATE INDEX IF NOT EXISTS idx_outfit_item_item ON outfit_item(item_id);
-CREATE INDEX IF NOT EXISTS idx_item_cutout_job ON item(cutout_job) WHERE cutout_job IS NOT NULL;
 `;
 
 export type DB = Database.Database;
