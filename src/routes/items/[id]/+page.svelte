@@ -40,6 +40,7 @@
         : null
   );
   let cutoutBusy = $derived(cutoutState !== null);
+  let alreadySharp = $derived(data.item.cutout_model === 'birefnet-general');
 
   // poll terwijl de cutout in de wachtrij/bezig is → werkt vanzelf bij zodra klaar
   $effect(() => {
@@ -198,15 +199,17 @@
           hidden
         />
       </label>
-      <button class="recut" onclick={sharperCutout} disabled={cutoutBusy || submitting}>
-        {#if cutoutState === 'working'}
-          <Icon name="loader" size={16} spin /> Cutout bezig…
-        {:else if cutoutState === 'queued'}
-          <Icon name="loader" size={16} spin /> In wachtrij…
-        {:else}
-          <Icon name="shapes" size={16} /> Scherpere cutout
-        {/if}
-      </button>
+      {#if !alreadySharp || cutoutBusy}
+        <button class="recut" onclick={sharperCutout} disabled={cutoutBusy || submitting}>
+          {#if cutoutState === 'working'}
+            <Icon name="loader" size={16} spin /> Cutout bezig…
+          {:else if cutoutState === 'queued'}
+            <Icon name="loader" size={16} spin /> In wachtrij…
+          {:else}
+            <Icon name="shapes" size={16} /> Scherpere cutout
+          {/if}
+        </button>
+      {/if}
     </div>
     <button class="del" onclick={del}>
       <Icon name="trash" size={16} /> Verwijderen
