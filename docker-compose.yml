@@ -40,6 +40,7 @@ services:
     user: "1000:1000"
     environment:
       REMBG_MODEL: ${REMBG_MODEL:-isnet-general-use}
+      MODEL_TTL_SECONDS: ${MODEL_TTL_SECONDS:-1800}   # 30 min idle → model vrijgeven (birefnet ~5.5G)
       TZ: ${TZ:-Europe/Amsterdam}
     networks:
       - default                 # alleen intern bereikbaar (app via servicenaam)

@@ -5,6 +5,7 @@
   import ItemFields, { type ItemFormValue, blankForm } from '$lib/components/ItemFields.svelte';
   import SuggestionBanner from '$lib/components/SuggestionBanner.svelte';
   import { suggestionPatch } from '$lib/suggestions';
+  import { fileToNormalizedJpeg } from '$lib/client/capture';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -28,6 +29,7 @@
   let zoom = $state(false);
   let saving = $state(false);
   let recutting = $state(false);
+  let newPhotoBusy = $state(false);
   let msg = $state<string | null>(null);
 
   const sameSet = (a: string[], b: string[]) =>
@@ -81,6 +83,28 @@
     patch({ ai_status: 'done' });
   }
 
+  // Vervang de foto van dit item (labels blijven). Normaliseert client-side en post naar /photo.
+  async function onNewPhoto(e: Event) {
+    const input = e.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    input.value = '';
+    if (!file) return;
+    newPhotoBusy = true;
+    msg = null;
+    try {
+      const blob = await fileToNormalizedJpeg(file);
+      const fd = new FormData();
+      fd.append('photo', blob, 'photo.jpg');
+      const res = await fetch(`/api/items/${data.item.id}/photo`, { method: 'POST', body: fd });
+      if (res.ok) await invalidateAll();
+      else msg = 'Nieuwe foto mislukt';
+    } catch {
+      msg = 'Nieuwe foto mislukt';
+    } finally {
+      newPhotoBusy = false;
+    }
+  }
+
   // Scherpere cutout via birefnet (zwaar, ~2-3 min); alleen op verzoek voor lastige foto's.
   async function sharperCutout() {
     if (recutting) return;
@@ -125,6 +149,15 @@
       <div class="ph"><Icon name="shirt" size={64} /></div>
     {/if}
   </button>
+
+  <label class="newphoto" class:busy={newPhotoBusy}>
+    {#if newPhotoBusy}
+      <Icon name="loader" size={16} spin /> Nieuwe foto verwerken…
+    {:else}
+      <Icon name="camera" size={16} /> Nieuwe foto
+    {/if}
+    <input type="file" accept="image/*" capture="environment" onchange={onNewPhoto} disabled={newPhotoBusy} hidden />
+  </label>
 
   {#if data.item.ai_status === 'suggested' && data.item.suggestions}
     <SuggestionBanner
@@ -217,6 +250,21 @@
     width: 100%;
     height: 100%;
     object-fit: contain;
+  }
+  .newphoto {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin-top: var(--space-2);
+    padding: var(--space-2) var(--space-3);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: var(--fs-sm);
+    cursor: pointer;
+  }
+  .newphoto.busy {
+    color: var(--text-muted);
+    cursor: default;
   }
   .ph {
     display: flex;
