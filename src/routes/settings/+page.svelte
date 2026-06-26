@@ -52,6 +52,25 @@
     if (res.ok) await invalidateAll();
     else msg = 'Verwijderen mislukt';
   }
+
+  let sharpening = $state(false);
+
+  async function sharpenAll() {
+    if (data.cutouts.notSharp < 1) return;
+    sharpening = true;
+    msg = null;
+    const res = await fetch('/api/cutouts', { method: 'POST' });
+    sharpening = false;
+    if (res.ok) await invalidateAll();
+    else msg = 'Starten mislukt';
+  }
+
+  // poll zolang er cutouts in de wachtrij staan → live voortgang
+  $effect(() => {
+    if (data.cutouts.queued < 1) return;
+    const t = setInterval(() => void invalidateAll(), 5000);
+    return () => clearInterval(t);
+  });
 </script>
 
 <h1>Instellingen</h1>
@@ -94,6 +113,32 @@
     <input class="input" placeholder="Naam kind" bind:value={newName} aria-label="Naam nieuw kind" />
     <Button variant="primary" onclick={addChild} disabled={!newName.trim()}>Toevoegen</Button>
   </div>
+</section>
+
+<section>
+  <h2>Cutouts</h2>
+  <p class="muted">
+    De scherpe cutout (birefnet) duurt ~2-3 min per foto en draait serieel op de achtergrond —
+    ook als je wegnavigeert.
+  </p>
+  {#if data.cutouts.queued > 0}
+    <p class="queued">{data.cutouts.queued} in de wachtrij…</p>
+  {/if}
+  {#if data.cutouts.notSharp > 0}
+    <p>
+      {data.cutouts.notSharp}
+      {data.cutouts.notSharp === 1 ? 'foto is' : "foto's zijn"} nog niet scherp.
+    </p>
+    <Button
+      variant="primary"
+      onclick={sharpenAll}
+      disabled={sharpening || data.cutouts.queued > 0}
+    >
+      {sharpening ? 'Bezig met starten…' : 'Verbeter alle cutouts'}
+    </Button>
+  {:else}
+    <p class="muted">Alle foto's hebben de scherpe cutout. ✓</p>
+  {/if}
 </section>
 
 <style>
@@ -149,5 +194,10 @@
   }
   .add .input {
     flex: 1;
+  }
+  .queued {
+    font-size: var(--fs-sm);
+    color: var(--accent, var(--text));
+    margin: 0 0 var(--space-2);
   }
 </style>

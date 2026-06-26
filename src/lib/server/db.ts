@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS item (
   cutout_status TEXT NOT NULL DEFAULT 'none'
     CHECK (cutout_status IN ('none','done','failed')),
   cutout_job TEXT,   -- cutout-wachtrij: 'queued:<model>' / 'working:<model>' / NULL (geen CHECK: zie migratie)
+  cutout_model TEXT, -- model van de huidige cutout ('birefnet-general' = scherp); NULL = onbekend/niet-scherp
   created_at TEXT NOT NULL
 );
 
@@ -149,7 +150,8 @@ export function updateItem(
     ...ITEM_FIELDS,
     'ai_suggestions',
     'cutout_path',
-    'cutout_status'
+    'cutout_status',
+    'cutout_model'
   ];
   const keys = allowed.filter((k) => k in patch).map((k) => String(k));
   if (keys.length === 0) return getItem(id);
@@ -271,6 +273,39 @@ export function enqueueAllCutouts(model?: string): number {
   return getDb()
     .prepare("UPDATE item SET cutout_job = 'queued:' || ? WHERE photo_display IS NOT NULL")
     .run(model ?? '').changes;
+}
+
+// 'Scherp' = birefnet-general. NULL/isnet telt als niet-scherp.
+const SHARP_MODEL = 'birefnet-general';
+
+// Aantal items-met-foto waarvan de huidige cutout nog niet scherp is.
+export function countNotSharp(): number {
+  return (
+    getDb()
+      .prepare(
+        `SELECT count(*) AS n FROM item
+         WHERE photo_display IS NOT NULL AND (cutout_model IS NULL OR cutout_model <> ?)`
+      )
+      .get(SHARP_MODEL) as { n: number }
+  ).n;
+}
+
+// Aantal items met een lopende/wachtende cutout-job.
+export function countQueuedCutouts(): number {
+  return (
+    getDb().prepare('SELECT count(*) AS n FROM item WHERE cutout_job IS NOT NULL').get() as { n: number }
+  ).n;
+}
+
+// Zet alle nog-niet-scherpe items (zonder lopende job) in de birefnet-queue. Retourneert count.
+export function enqueueSharpenAll(): number {
+  return getDb()
+    .prepare(
+      `UPDATE item SET cutout_job = 'queued:' || ?
+       WHERE photo_display IS NOT NULL AND cutout_job IS NULL
+         AND (cutout_model IS NULL OR cutout_model <> ?)`
+    )
+    .run(SHARP_MODEL, SHARP_MODEL).changes;
 }
 
 // Atomair de oudste queued-job naar 'working' tillen. Retourneert id + model (leeg = default).

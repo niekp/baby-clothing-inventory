@@ -75,6 +75,12 @@ export const MIGRATIONS: Migration[] = [
         'CREATE INDEX IF NOT EXISTS idx_item_cutout_job ON item(cutout_job) WHERE cutout_job IS NOT NULL'
       ).run();
     }
+  },
+  {
+    // item.cutout_model: welk model de huidige cutout maakte ('birefnet-general' = scherp,
+    // 'isnet-general-use' = snel/default). NULL = onbekend (van vóór deze kolom) → telt als niet-scherp.
+    name: 'add-item-cutout-model',
+    up: (db) => addColumnIfMissing(db, 'item', 'cutout_model', 'TEXT')
   }
 ];
 

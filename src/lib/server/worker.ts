@@ -76,7 +76,8 @@ export async function generateCutout(
     if (!getItem(id)) return null; // item ondertussen verwijderd → geen wees-cutout
     const norm = await normalizeCutout(png).catch(() => png); // uniform vierkant; niet-fataal
     const name = await saveCutout(id, norm);
-    updateItem(id, { cutout_path: name, cutout_status: 'done' });
+    // model leeg → sidecar-default (isnet); leg expliciet vast zodat NULL ondubbelzinnig 'onbekend' betekent
+    updateItem(id, { cutout_path: name, cutout_status: 'done', cutout_model: model || 'isnet-general-use' });
     return norm;
   } catch (e) {
     console.error(`[worker] item ${id} cutout mislukt:`, e);

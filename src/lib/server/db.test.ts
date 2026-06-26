@@ -4,6 +4,9 @@ import {
   claimNextProcessing,
   clearCutoutJob,
   countBySizeType,
+  countNotSharp,
+  countQueuedCutouts,
+  enqueueSharpenAll,
   createChild,
   createFilterset,
   createItem,
@@ -290,6 +293,58 @@ describe('cutout-wachtrij (cutout_job)', () => {
     claimNextCutout(); // → working:birefnet-general
     sweepStuckWorking();
     expect(getItem(a.id)!.cutout_job).toBe('queued:birefnet-general');
+  });
+});
+
+describe('cutout_model + verbeter-alles', () => {
+  const withPhoto = (size: string) => {
+    const it = createItem({ size });
+    updateItem(it.id, { photo_display: `${it.id}.webp` });
+    return it;
+  };
+
+  it('countNotSharp telt items zonder/met niet-birefnet model, negeert foto-loze', () => {
+    const a = withPhoto('74'); // cutout_model NULL → niet-scherp
+    const b = withPhoto('80');
+    updateItem(b.id, { cutout_model: 'isnet-general-use' }); // niet-scherp
+    const c = withPhoto('86');
+    updateItem(c.id, { cutout_model: 'birefnet-general' }); // scherp
+    createItem({ size: '92' }); // geen foto → telt niet
+    expect(countNotSharp()).toBe(2);
+    expect([a.id, b.id, c.id].length).toBe(3);
+  });
+
+  it('enqueueSharpenAll zet alleen niet-scherpe foto-items in de birefnet-queue', () => {
+    const a = withPhoto('74');
+    const b = withPhoto('80');
+    updateItem(b.id, { cutout_model: 'birefnet-general' }); // al scherp → overslaan
+    const n = enqueueSharpenAll();
+    expect(n).toBe(1);
+    expect(getItem(a.id)!.cutout_job).toBe('queued:birefnet-general');
+    expect(getItem(b.id)!.cutout_job).toBeNull();
+  });
+
+  it('enqueueSharpenAll slaat items met een lopende job over', () => {
+    const a = withPhoto('74');
+    enqueueCutout(a.id, 'isnet-general-use'); // al in de wachtrij
+    expect(enqueueSharpenAll()).toBe(0);
+    expect(getItem(a.id)!.cutout_job).toBe('queued:isnet-general-use'); // niet overschreven
+  });
+
+  it('countQueuedCutouts telt lopende+wachtende jobs', () => {
+    const a = withPhoto('74');
+    const b = withPhoto('80');
+    enqueueCutout(a.id, 'birefnet-general');
+    expect(countQueuedCutouts()).toBe(1);
+    enqueueCutout(b.id);
+    expect(countQueuedCutouts()).toBe(2);
+  });
+
+  it('generateCutout-pad: done-update legt cutout_model vast (via updateItem-whitelist)', () => {
+    const a = withPhoto('74');
+    updateItem(a.id, { cutout_status: 'done', cutout_model: 'birefnet-general' });
+    expect(getItem(a.id)!.cutout_model).toBe('birefnet-general');
+    expect(countNotSharp()).toBe(0);
   });
 });
 

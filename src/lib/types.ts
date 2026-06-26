@@ -24,6 +24,7 @@ export interface Item {
   ai_suggestions: string | null; // JSON
   cutout_path: string | null;
   cutout_status: CutoutStatus;
+  cutout_model: string | null; // model van de huidige cutout: 'birefnet-general' = scherp, else niet-scherp
   cutout_job: string | null; // cutout-wachtrij: 'queued:<model>' / 'working:<model>' / null
   created_at: string;
   embedding?: Buffer | null; // CLIP-vector (BLOB); server-only, niet naar de client
