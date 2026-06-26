@@ -42,6 +42,15 @@
   let cutoutBusy = $derived(cutoutState !== null);
   let alreadySharp = $derived(data.item.cutout_model === 'birefnet-general');
 
+  // toon de nieuwste van cutout/display (op ?v=mtime): verse foto direct zichtbaar,
+  // schakelt naar de cutout zodra die opnieuw gegenereerd is
+  const ver = (url: string | null) => Number(url?.match(/[?&]v=(\d+)/)?.[1] ?? 0);
+  let mainPhoto = $derived(
+    ver(data.item.cutout_url) >= ver(data.item.display_url)
+      ? (data.item.cutout_url ?? data.item.display_url)
+      : data.item.display_url
+  );
+
   // poll terwijl de cutout in de wachtrij/bezig is → werkt vanzelf bij zodra klaar
   $effect(() => {
     if (!cutoutBusy) return;
@@ -160,9 +169,9 @@
   </header>
 
   <button class="photo" onclick={() => (zoom = true)} aria-label="Foto vergroten">
-    {#if data.item.cutout_url || data.item.display_url}
-      <!-- cutout heeft voorkeur (schoon, vrijstaand); zoom toont de echte foto -->
-      <img src={data.item.cutout_url ?? data.item.display_url} alt={data.item.type ?? 'kledingstuk'} />
+    {#if mainPhoto}
+      <!-- nieuwste van cutout/display; zoom toont de echte foto -->
+      <img src={mainPhoto} alt={data.item.type ?? 'kledingstuk'} />
     {:else}
       <div class="ph"><Icon name="shirt" size={64} /></div>
     {/if}

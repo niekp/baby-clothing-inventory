@@ -1,5 +1,5 @@
 import sharp from 'sharp';
-import { mkdirSync } from 'node:fs';
+import { mkdirSync, statSync } from 'node:fs';
 import { readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
@@ -192,8 +192,16 @@ export async function readPhoto(variant: string, filename: string): Promise<Phot
   }
 }
 
+// Versioneert op mtime: bestandsnamen zijn stabiel (<id>.webp/.png), dus zonder
+// ?v overschrijft een nieuwe foto de cache niet. Stat faalt → kale URL.
 export function photoUrl(variant: Variant, name: string | null): string | null {
-  return name ? `/photos/${variant}/${name}` : null;
+  if (!name) return null;
+  const url = `/photos/${variant}/${name}`;
+  try {
+    return `${url}?v=${Math.floor(statSync(join(baseDir(), variant, name)).mtimeMs)}`;
+  } catch {
+    return url;
+  }
 }
 
 export { mimeForExt };
