@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS item (
   cutout_path TEXT,
   cutout_status TEXT NOT NULL DEFAULT 'none'
     CHECK (cutout_status IN ('none','done','failed')),
+  cutout_job TEXT,   -- cutout-wachtrij: 'queued:<model>' / 'working:<model>' / NULL (geen CHECK: zie migratie)
   created_at TEXT NOT NULL
 );
 
@@ -67,6 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_item_claim ON item(ai_status, created_at);
 CREATE INDEX IF NOT EXISTS idx_item_created ON item(created_at);
 CREATE INDEX IF NOT EXISTS idx_outfit_item_outfit ON outfit_item(outfit_id);
 CREATE INDEX IF NOT EXISTS idx_outfit_item_item ON outfit_item(item_id);
+CREATE INDEX IF NOT EXISTS idx_item_cutout_job ON item(cutout_job) WHERE cutout_job IS NOT NULL;
 `;
 
 export type DB = Database.Database;
@@ -163,13 +165,6 @@ export function deleteItem(id: number): boolean {
   return getDb().prepare('DELETE FROM item WHERE id = ?').run(id).changes > 0;
 }
 
-// Items met een display-foto (bron voor het opnieuw genereren van cutouts).
-export function listDisplayItems(): { id: number; photo_display: string }[] {
-  return getDb()
-    .prepare('SELECT id, photo_display FROM item WHERE photo_display IS NOT NULL ORDER BY id')
-    .all() as { id: number; photo_display: string }[];
-}
-
 // Eenvoudige key/value-meta (o.a. eenmalige data-taken bij startup).
 export function getMeta(key: string): string | undefined {
   return (getDb().prepare('SELECT value FROM app_meta WHERE key = ?').get(key) as { value: string } | undefined)
@@ -253,10 +248,47 @@ export function claimNextProcessing(): Item | undefined {
     .get() as Item | undefined;
 }
 
-// Bij opstart: vastgelopen 'working' terug naar 'processing'.
+// Bij opstart: vastgelopen 'working' terug naar de wachtrij (AI én cutout).
 export function sweepStuckWorking(): number {
-  return getDb().prepare("UPDATE item SET ai_status='processing' WHERE ai_status='working'").run()
-    .changes;
+  const db = getDb();
+  const ai = db.prepare("UPDATE item SET ai_status='processing' WHERE ai_status='working'").run().changes;
+  const cut = db
+    .prepare("UPDATE item SET cutout_job = 'queued:' || substr(cutout_job, 9) WHERE cutout_job LIKE 'working:%'")
+    .run().changes;
+  return ai + cut;
+}
+
+// --- cutout-wachtrij (cutout_job: 'queued:<model>' / 'working:<model>' / NULL) ---
+
+// Zet een (re)cutout-job in de wachtrij. model leeg → sidecar-default (isnet).
+export function enqueueCutout(id: number, model?: string): void {
+  getDb()
+    .prepare("UPDATE item SET cutout_job = 'queued:' || ? WHERE id = ?")
+    .run(model ?? '', id);
+}
+
+// Alle items met display-foto in de cutout-wachtrij (bv. eenmalige her-generatie).
+export function enqueueAllCutouts(model?: string): number {
+  return getDb()
+    .prepare("UPDATE item SET cutout_job = 'queued:' || ? WHERE photo_display IS NOT NULL")
+    .run(model ?? '').changes;
+}
+
+// Atomair de oudste queued-job naar 'working' tillen. Retourneert id + model (leeg = default).
+export function claimNextCutout(): { id: number; model: string } | undefined {
+  const row = getDb()
+    .prepare(
+      `UPDATE item SET cutout_job = 'working:' || substr(cutout_job, 8)
+       WHERE id = (SELECT id FROM item WHERE cutout_job LIKE 'queued:%' ORDER BY created_at LIMIT 1)
+       RETURNING id, substr(cutout_job, 9) AS model`
+    )
+    .get() as { id: number; model: string } | undefined;
+  return row;
+}
+
+// Job afronden: uit de wachtrij halen (cutout_status is al door generateCutout gezet).
+export function clearCutoutJob(id: number): void {
+  getDb().prepare('UPDATE item SET cutout_job = NULL WHERE id = ?').run(id);
 }
 
 // Worker schrijft z'n resultaat ALLEEN als 't item nog 'working' is. Heeft de

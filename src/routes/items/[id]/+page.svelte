@@ -28,9 +28,25 @@
 
   let zoom = $state(false);
   let saving = $state(false);
-  let recutting = $state(false);
-  let newPhotoBusy = $state(false);
+  let submitting = $state(false); // korte duur van de enqueue-POST zelf
   let msg = $state<string | null>(null);
+
+  // cutout-wachtrij-staat uit de DB (overleeft navigatie): 'queued' | 'working' | null
+  let cutoutState = $derived(
+    data.item.cutout_job?.startsWith('working:')
+      ? 'working'
+      : data.item.cutout_job?.startsWith('queued:')
+        ? 'queued'
+        : null
+  );
+  let cutoutBusy = $derived(cutoutState !== null);
+
+  // poll terwijl de cutout in de wachtrij/bezig is → werkt vanzelf bij zodra klaar
+  $effect(() => {
+    if (!cutoutBusy) return;
+    const t = setInterval(() => void invalidateAll(), 3000);
+    return () => clearInterval(t);
+  });
 
   const sameSet = (a: string[], b: string[]) =>
     a.length === b.length && [...a].sort().join(',') === [...b].sort().join(',');
@@ -83,13 +99,14 @@
     patch({ ai_status: 'done' });
   }
 
-  // Vervang de foto van dit item (labels blijven). Normaliseert client-side en post naar /photo.
+  // Vervang de foto van dit item (labels blijven). Normaliseert client-side, post naar /photo;
+  // de cutout gaat in de wachtrij en wordt door de worker ververst.
   async function onNewPhoto(e: Event) {
     const input = e.currentTarget as HTMLInputElement;
     const file = input.files?.[0];
     input.value = '';
-    if (!file) return;
-    newPhotoBusy = true;
+    if (!file || submitting || cutoutBusy) return;
+    submitting = true;
     msg = null;
     try {
       const blob = await fileToNormalizedJpeg(file);
@@ -101,14 +118,14 @@
     } catch {
       msg = 'Nieuwe foto mislukt';
     } finally {
-      newPhotoBusy = false;
+      submitting = false;
     }
   }
 
-  // Scherpere cutout via birefnet (zwaar, ~2-3 min); alleen op verzoek voor lastige foto's.
+  // Zet een scherpere cutout (birefnet) in de wachtrij; de worker draint serieel.
   async function sharperCutout() {
-    if (recutting) return;
-    recutting = true;
+    if (submitting || cutoutBusy) return;
+    submitting = true;
     msg = null;
     try {
       const res = await fetch(`/api/items/${data.item.id}/recutout`, {
@@ -119,9 +136,9 @@
       if (res.ok) await invalidateAll();
       else msg = 'Scherpere cutout mislukt';
     } catch {
-      msg = 'Scherpere cutout mislukt (duurde te lang?)';
+      msg = 'Scherpere cutout mislukt';
     } finally {
-      recutting = false;
+      submitting = false;
     }
   }
 
@@ -170,24 +187,22 @@
 
   <div class="extra">
     <div class="photo-actions">
-      <label class="recut" class:busy={newPhotoBusy}>
-        {#if newPhotoBusy}
-          <Icon name="loader" size={16} spin /> Nieuwe foto…
-        {:else}
-          <Icon name="camera" size={16} /> Nieuwe foto
-        {/if}
+      <label class="recut" class:busy={cutoutBusy || submitting}>
+        <Icon name="camera" size={16} /> Nieuwe foto
         <input
           type="file"
           accept="image/*"
           capture="environment"
           onchange={onNewPhoto}
-          disabled={newPhotoBusy}
+          disabled={cutoutBusy || submitting}
           hidden
         />
       </label>
-      <button class="recut" onclick={sharperCutout} disabled={recutting}>
-        {#if recutting}
-          <Icon name="loader" size={16} spin /> Scherpere cutout…
+      <button class="recut" onclick={sharperCutout} disabled={cutoutBusy || submitting}>
+        {#if cutoutState === 'working'}
+          <Icon name="loader" size={16} spin /> Cutout bezig…
+        {:else if cutoutState === 'queued'}
+          <Icon name="loader" size={16} spin /> In wachtrij…
         {:else}
           <Icon name="shapes" size={16} /> Scherpere cutout
         {/if}

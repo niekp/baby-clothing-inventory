@@ -63,6 +63,12 @@ export const MIGRATIONS: Migration[] = [
     // item.color_hist: kleur-histogram (BLOB) voor de kleur-gate
     name: 'add-item-color-hist',
     up: (db) => addColumnIfMissing(db, 'item', 'color_hist', 'BLOB')
+  },
+  {
+    // item.cutout_job: cutout-wachtrij ('queued:<model>'/'working:<model>'/NULL). Geen CHECK
+    // (cutout_status-CHECK widen zou een tabel-rebuild vergen); guarded ALTER volstaat.
+    name: 'add-item-cutout-job',
+    up: (db) => addColumnIfMissing(db, 'item', 'cutout_job', 'TEXT')
   }
 ];
 

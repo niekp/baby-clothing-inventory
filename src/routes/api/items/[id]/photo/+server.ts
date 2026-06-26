@@ -1,8 +1,7 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getItem, updateItem } from '$lib/server/db';
-import { deletePhotos, extForMime, readPhoto, savePhoto } from '$lib/server/photos';
-import { generateCutout } from '$lib/server/worker';
+import { enqueueCutout, getItem, updateItem } from '$lib/server/db';
+import { deletePhotos, extForMime, savePhoto } from '$lib/server/photos';
 import { serializeItem } from '$lib/server/serialize';
 
 // Vervangt de foto van een bestaand item (labels blijven). Slaat orig+display op,
@@ -31,10 +30,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
     await deletePhotos({ photo_orig: before.photo_orig });
   }
 
-  // cutout verversen vanaf de nieuwe display-foto (isnet; niet-fataal)
-  if (saved.dispName) {
-    const file = await readPhoto('disp', saved.dispName);
-    if (file) await generateCutout(id, file.data);
-  }
-  return json(serializeItem(getItem(id)!));
+  // cutout verversen via de wachtrij (isnet; worker pakt 't op)
+  if (saved.dispName) enqueueCutout(id);
+  return json(serializeItem(getItem(id)!), { status: 202 });
 };

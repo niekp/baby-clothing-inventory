@@ -1,11 +1,10 @@
 import { error, json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getItem } from '$lib/server/db';
-import { readPhoto } from '$lib/server/photos';
-import { generateCutout } from '$lib/server/worker';
+import { enqueueCutout, getItem } from '$lib/server/db';
 import { serializeItem } from '$lib/server/serialize';
 
-// Genereert de cutout opnieuw (inline). isnet (snel) of birefnet-general (scherper, ~2-3 min).
+// Zet een (re)cutout in de wachtrij. isnet (snel) of birefnet-general (scherper, ~2-3 min).
+// De worker draint serieel; antwoordt direct (geen lang inline-request).
 export const POST: RequestHandler = async ({ params, request }) => {
   const id = Number(params.id);
   if (!Number.isInteger(id) || id <= 0) error(400, 'Ongeldig id');
@@ -26,10 +25,6 @@ export const POST: RequestHandler = async ({ params, request }) => {
     model = body.model;
   }
 
-  const file = await readPhoto('disp', item.photo_display);
-  if (!file) error(409, 'Display-bestand ontbreekt');
-
-  const norm = await generateCutout(id, file.data, model);
-  if (!norm) error(502, 'Cutout mislukt');
-  return json(serializeItem(getItem(id)!));
+  enqueueCutout(id, model);
+  return json(serializeItem(getItem(id)!), { status: 202 });
 };

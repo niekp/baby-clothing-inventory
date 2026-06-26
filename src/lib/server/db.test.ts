@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import {
+  claimNextCutout,
   claimNextProcessing,
+  clearCutoutJob,
   countBySizeType,
   createChild,
   createFilterset,
@@ -9,6 +11,7 @@ import {
   deleteChild,
   deleteFilterset,
   deleteItem,
+  enqueueCutout,
   failTagging,
   finishTagging,
   getItem,
@@ -244,6 +247,49 @@ describe('child CRUD', () => {
     const c = createChild('Z');
     expect(deleteChild(c.id)).toBe(true);
     expect(listChildren().length).toBe(0);
+  });
+});
+
+describe('cutout-wachtrij (cutout_job)', () => {
+  it('enqueue → claim tilt queued naar working en geeft het model terug', () => {
+    const a = createItem({ size: '74' });
+    enqueueCutout(a.id, 'birefnet-general');
+    expect(getItem(a.id)!.cutout_job).toBe('queued:birefnet-general');
+    const job = claimNextCutout();
+    expect(job).toEqual({ id: a.id, model: 'birefnet-general' });
+    expect(getItem(a.id)!.cutout_job).toBe('working:birefnet-general');
+    expect(claimNextCutout()).toBeUndefined(); // niets meer queued
+  });
+
+  it('leeg model → default (claim geeft lege string)', () => {
+    const a = createItem({ size: '74' });
+    enqueueCutout(a.id);
+    expect(getItem(a.id)!.cutout_job).toBe('queued:');
+    expect(claimNextCutout()).toEqual({ id: a.id, model: '' });
+  });
+
+  it('claim is FIFO op created_at', () => {
+    const a = createItem({ size: '74' });
+    const b = createItem({ size: '80' });
+    enqueueCutout(b.id);
+    enqueueCutout(a.id);
+    expect(claimNextCutout()!.id).toBe(a.id); // a is ouder
+  });
+
+  it('clearCutoutJob haalt het uit de wachtrij', () => {
+    const a = createItem({ size: '74' });
+    enqueueCutout(a.id, 'birefnet-general');
+    claimNextCutout();
+    clearCutoutJob(a.id);
+    expect(getItem(a.id)!.cutout_job).toBeNull();
+  });
+
+  it('sweepStuckWorking zet working terug naar queued (model behouden)', () => {
+    const a = createItem({ size: '74' });
+    enqueueCutout(a.id, 'birefnet-general');
+    claimNextCutout(); // → working:birefnet-general
+    sweepStuckWorking();
+    expect(getItem(a.id)!.cutout_job).toBe('queued:birefnet-general');
   });
 });
 

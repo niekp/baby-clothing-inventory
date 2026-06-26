@@ -1,10 +1,12 @@
 import {
+  claimNextCutout,
   claimNextProcessing,
+  clearCutoutJob,
+  enqueueAllCutouts,
   failTagging,
   finishTagging,
   getItem,
   getMeta,
-  listDisplayItems,
   setMeta,
   sweepStuckWorking,
   updateItem
@@ -91,37 +93,39 @@ export async function generateCutout(
 // 2 = padding teruggedraaid (gaf vloer-doorslag op lage-contrast foto's).
 const CUTOUT_GEN = 2;
 
-// Eenmalige hergeneratie na een pijplijn-wijziging; versie-gated zoals een migratie,
-// maar async/op de achtergrond (rembg-calls mogen de boot niet blokkeren).
-async function regenCutoutsIfStale(): Promise<void> {
+// Eenmalige her-generatie na een pijplijn-wijziging; versie-gated zoals een migratie.
+// Zet alle items in de cutout-wachtrij; de worker draint ze serieel.
+function regenCutoutsIfStale(): void {
   if (Number(getMeta('cutout_gen') ?? 0) >= CUTOUT_GEN) return;
-  const { done, failed } = await regenerateAllCutouts();
-  // niet bumpen als álles faalde (sidecar down) → volgende boot probeert opnieuw
-  if (done > 0 || done + failed === 0) setMeta('cutout_gen', String(CUTOUT_GEN));
-  console.info(`[cutouts] eenmalige hergeneratie (gen ${CUTOUT_GEN}): ${done} ok, ${failed} mislukt`);
+  const n = enqueueAllCutouts();
+  setMeta('cutout_gen', String(CUTOUT_GEN));
+  console.info(`[cutouts] ${n} items in de wachtrij voor her-generatie (gen ${CUTOUT_GEN})`);
 }
 
-// Genereert de cutout opnieuw voor alle items met display-foto (rembg + normalisatie,
-// mét padding). Géén re-tag: handmatige labels blijven. Serieel; sidecar is concurrency-1.
-async function regenerateAllCutouts(): Promise<{ done: number; failed: number }> {
-  let done = 0;
-  let failed = 0;
-  for (const { id, photo_display } of listDisplayItems()) {
-    const file = await readPhoto('disp', photo_display);
-    if (!file) {
-      failed++;
-      continue;
+// Verwerkt één cutout-job uit de wachtrij. Retourneert false als de wachtrij leeg was.
+async function drainCutout(): Promise<boolean> {
+  const job = claimNextCutout();
+  if (!job) return false;
+  try {
+    const item = getItem(job.id);
+    if (!item?.photo_display) {
+      updateItem(job.id, { cutout_status: 'failed' });
+      return true;
     }
-    (await generateCutout(id, file.data)) ? done++ : failed++;
+    const file = await readPhoto('disp', item.photo_display);
+    if (file) await generateCutout(job.id, file.data, job.model || undefined);
+    else updateItem(job.id, { cutout_status: 'failed' });
+  } finally {
+    clearCutoutJob(job.id); // generateCutout zette cutout_status al
   }
-  return { done, failed };
+  return true;
 }
 
 async function loop(): Promise<void> {
   for (;;) {
     let did = false;
     try {
-      did = await processOne();
+      did = (await processOne()) || (await drainCutout()); // AI eerst (scan-tagging), dan cutouts
     } catch (e) {
       // claim/db-fout: niet de lus laten sterven
       console.error('[worker] loop-fout:', e);
@@ -135,7 +139,7 @@ export function startWorker(): void {
   const g = globalThis as { __bciWorkerStarted?: boolean };
   if (g.__bciWorkerStarted) return;
   g.__bciWorkerStarted = true;
-  sweepStuckWorking(); // vastgelopen 'working' na een crash terug naar 'processing'
-  void regenCutoutsIfStale().catch((e) => console.error('[cutouts] hergeneratie-fout:', e));
+  sweepStuckWorking(); // vastgelopen 'working' na een crash terug naar de wachtrij
+  regenCutoutsIfStale(); // eenmalige her-generatie → in de wachtrij
   void loop();
 }
