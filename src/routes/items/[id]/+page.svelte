@@ -150,15 +150,6 @@
     {/if}
   </button>
 
-  <label class="newphoto" class:busy={newPhotoBusy}>
-    {#if newPhotoBusy}
-      <Icon name="loader" size={16} spin /> Nieuwe foto verwerken…
-    {:else}
-      <Icon name="camera" size={16} /> Nieuwe foto
-    {/if}
-    <input type="file" accept="image/*" capture="environment" onchange={onNewPhoto} disabled={newPhotoBusy} hidden />
-  </label>
-
   {#if data.item.ai_status === 'suggested' && data.item.suggestions}
     <SuggestionBanner
       suggestions={data.item.suggestions}
@@ -178,13 +169,30 @@
   </div>
 
   <div class="extra">
-    <button class="recut" onclick={sharperCutout} disabled={recutting}>
-      {#if recutting}
-        <Icon name="loader" size={16} spin /> Scherpere cutout… (kan een paar minuten duren)
-      {:else}
-        <Icon name="shapes" size={16} /> Scherpere cutout
-      {/if}
-    </button>
+    <div class="photo-actions">
+      <label class="recut" class:busy={newPhotoBusy}>
+        {#if newPhotoBusy}
+          <Icon name="loader" size={16} spin /> Nieuwe foto…
+        {:else}
+          <Icon name="camera" size={16} /> Nieuwe foto
+        {/if}
+        <input
+          type="file"
+          accept="image/*"
+          capture="environment"
+          onchange={onNewPhoto}
+          disabled={newPhotoBusy}
+          hidden
+        />
+      </label>
+      <button class="recut" onclick={sharperCutout} disabled={recutting}>
+        {#if recutting}
+          <Icon name="loader" size={16} spin /> Scherpere cutout…
+        {:else}
+          <Icon name="shapes" size={16} /> Scherpere cutout
+        {/if}
+      </button>
+    </div>
     <button class="del" onclick={del}>
       <Icon name="trash" size={16} /> Verwijderen
     </button>
@@ -251,21 +259,6 @@
     height: 100%;
     object-fit: contain;
   }
-  .newphoto {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-2);
-    margin-top: var(--space-2);
-    padding: var(--space-2) var(--space-3);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    font-size: var(--fs-sm);
-    cursor: pointer;
-  }
-  .newphoto.busy {
-    color: var(--text-muted);
-    cursor: default;
-  }
   .ph {
     display: flex;
     align-items: center;
@@ -288,8 +281,14 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    flex-wrap: wrap;
     gap: var(--space-3);
     margin-top: var(--space-5);
+  }
+  .photo-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-2);
   }
   .recut {
     display: inline-flex;
@@ -301,9 +300,12 @@
     color: var(--text);
     font-size: var(--fs-sm);
     padding: var(--space-2) var(--space-3);
+    cursor: pointer;
   }
-  .recut:disabled {
+  .recut:disabled,
+  .recut.busy {
     color: var(--text-muted);
+    cursor: default;
   }
   .del {
     display: inline-flex;
