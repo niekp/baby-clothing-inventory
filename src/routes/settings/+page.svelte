@@ -77,10 +77,6 @@
 
 <section>
   <h2>Kinderen</h2>
-  <p class="muted">
-    Markeer de huidige maat/maten per kind; deze lichten op in de cijfers. Zit een kind
-    tussen maten in, kies er dan meerdere.
-  </p>
   {#if msg}<p class="err" role="alert">{msg}</p>{/if}
 
   {#each data.children as child (child.id)}
@@ -117,10 +113,6 @@
 
 <section>
   <h2>Cutouts</h2>
-  <p class="muted">
-    De scherpe cutout (birefnet) duurt ~2-3 min per foto en draait serieel op de achtergrond —
-    ook als je wegnavigeert.
-  </p>
   {#if data.cutouts.queued > 0}
     <p class="queued">{data.cutouts.queued} in de wachtrij…</p>
   {/if}
