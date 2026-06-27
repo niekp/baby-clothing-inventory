@@ -18,15 +18,14 @@
     const other = new Map<string, number>();
     let max = 0;
     for (const c of counts) {
-      // dubbele maat (86/92) telt mee in beide maat-rijen (86 én 92)
-      for (const size of expandSize(String(c.size))) {
-        if (c.type && TYPE_SET.has(c.type)) {
-          m.set(`${size}|${c.type}`, (m.get(`${size}|${c.type}`) ?? 0) + c.n);
-          max = Math.max(max, m.get(`${size}|${c.type}`)!);
-        } else {
-          other.set(size, (other.get(size) ?? 0) + c.n);
-          max = Math.max(max, other.get(size)!);
-        }
+      // dubbele maat (86/92) telt bij de kleinste component (86)
+      const size = expandSize(String(c.size))[0];
+      if (c.type && TYPE_SET.has(c.type)) {
+        m.set(`${size}|${c.type}`, (m.get(`${size}|${c.type}`) ?? 0) + c.n);
+        max = Math.max(max, m.get(`${size}|${c.type}`)!);
+      } else {
+        other.set(size, (other.get(size) ?? 0) + c.n);
+        max = Math.max(max, other.get(size)!);
       }
     }
     return { m, other, max };

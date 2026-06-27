@@ -1,8 +1,10 @@
 <script lang="ts">
   import Heatmap from '$lib/components/Heatmap.svelte';
+  import SeasonMatrix from '$lib/components/SeasonMatrix.svelte';
   import Chip from '$lib/components/Chip.svelte';
   import Button from '$lib/components/Button.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import { SIZE_STRINGS, expandSize } from '$lib/config';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -20,6 +22,32 @@
       data.children.filter((c) => c.current_sizes.length && enabled[c.id]).flatMap((c) => c.current_sizes)
     )
   );
+
+  // default-maat voor de seizoen-matrix: eerste kind-maat, anders de meest-gevulde
+  // (telling op kleinste component, zoals de matrix zelf)
+  function defaultSize(): string {
+    const child = data.children.find((c) => c.current_sizes.length)?.current_sizes[0];
+    if (child && SIZE_STRINGS.includes(child)) return child;
+    const per = new Map<string, number>();
+    for (const c of data.counts) {
+      const s = expandSize(String(c.size))[0];
+      per.set(s, (per.get(s) ?? 0) + c.n);
+    }
+    let best = SIZE_STRINGS[0];
+    let max = -1;
+    for (const [s, n] of per) {
+      if (n > max) {
+        max = n;
+        best = s;
+      }
+    }
+    return best;
+  }
+
+  let selectedSize = $state('');
+  $effect(() => {
+    if (!selectedSize) selectedSize = defaultSize();
+  });
 </script>
 
 <h1>Cijfers</h1>
@@ -46,13 +74,33 @@
     </div>
   {/if}
 
+  <h2>Maat × type</h2>
   <Heatmap counts={data.counts} {highlightSizes} />
+
+  <h2>Per seizoen</h2>
+  <p class="muted hint">Kies een maat — soort × seizoen (allseason telt in elk seizoen)</p>
+  <div class="markers">
+    {#each SIZE_STRINGS as s (s)}
+      <Chip label={s} selected={selectedSize === s} onclick={() => (selectedSize = s)} />
+    {/each}
+  </div>
+  {#if selectedSize}
+    <SeasonMatrix rows={data.seasonRows} size={selectedSize} />
+  {/if}
 {/if}
 
 <style>
   h1 {
     margin: 0 0 var(--space-3);
     font-size: var(--fs-xl);
+  }
+  h2 {
+    margin: var(--space-5) 0 var(--space-2);
+    font-size: var(--fs-lg);
+  }
+  .hint {
+    margin: 0 0 var(--space-3);
+    font-size: var(--fs-sm);
   }
   .total {
     margin: 0 0 var(--space-3);

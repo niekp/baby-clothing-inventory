@@ -236,6 +236,20 @@ export function countBySizeType(): { size: string; type: string | null; n: numbe
     .all() as { size: string; type: string | null; n: number }[];
 }
 
+// Aggregatie maat × type × seizoen-set (rauwe season-JSON) voor de seizoen-matrix.
+// Groeperen op de hele JSON-string voorkomt dubbeltelling per item; de client
+// parset en expandeert 'allseason'.
+export function countBySizeTypeSeason(): {
+  size: string;
+  type: string | null;
+  season: string | null;
+  n: number;
+}[] {
+  return getDb()
+    .prepare('SELECT size, type, season, COUNT(*) AS n FROM item GROUP BY size, type, season')
+    .all() as { size: string; type: string | null; season: string | null; n: number }[];
+}
+
 // --- worker-claim ---
 
 // Atomair één processing-item naar 'working' tillen (voorkomt dubbel oppakken).

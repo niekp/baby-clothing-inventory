@@ -4,6 +4,7 @@ import {
   claimNextProcessing,
   clearCutoutJob,
   countBySizeType,
+  countBySizeTypeSeason,
   countNotSharp,
   countQueuedCutouts,
   enqueueSharpenAll,
@@ -193,6 +194,20 @@ describe('countBySizeType', () => {
     const rows = countBySizeType();
     const broek = rows.find((r) => r.size === '68' && r.type === 'broek');
     expect(broek?.n).toBe(2);
+  });
+});
+
+describe('countBySizeTypeSeason', () => {
+  it('groepeert op de rauwe season-JSON (geen dubbeltelling per item)', () => {
+    createItem({ size: '68', type: 'broek', seasons: ['zomer', 'tussenseizoen'] });
+    createItem({ size: '68', type: 'broek', seasons: ['zomer', 'tussenseizoen'] });
+    createItem({ size: '68', type: 'broek', seasons: ['allseason'] });
+    createItem({ size: '68', type: 'broek' }); // geen seizoen
+    const rows = countBySizeTypeSeason().filter((r) => r.size === '68' && r.type === 'broek');
+    const multi = rows.find((r) => r.season === JSON.stringify(['zomer', 'tussenseizoen']));
+    expect(multi?.n).toBe(2);
+    expect(rows.find((r) => r.season === JSON.stringify(['allseason']))?.n).toBe(1);
+    expect(rows.find((r) => r.season === null)?.n).toBe(1);
   });
 });
 
