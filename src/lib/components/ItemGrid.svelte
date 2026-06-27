@@ -42,7 +42,7 @@
 {#if groups}
   {#each groups as g (g.type)}
     <section class="group">
-      <h2 class="group-title">{g.label}</h2>
+      <h2 class="group-title">{g.label} <span class="count">({g.items.length})</span></h2>
       <div class="grid">
         {#each g.items as item (item.id)}
           <ItemCard {item} {stackable} />
@@ -68,6 +68,10 @@
     color: var(--text-muted);
     text-transform: capitalize;
     margin: 0 0 var(--space-2);
+  }
+  .count {
+    font-weight: 400;
+    opacity: 0.7;
   }
   .grid {
     display: grid;
