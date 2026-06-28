@@ -72,8 +72,9 @@
     return `color-mix(in srgb, var(--accent) ${Math.round(15 + t * 70)}%, transparent)`;
   }
 
+  // allseason mee in de filter: de cel telt allseason-items in elke kolom, dus de kast moet ze ook tonen
   function cellLink(bucket: string, col: string): string {
-    const f: ItemFilters = { size: [size], season: [col] };
+    const f: ItemFilters = { size: [size], season: [col, 'allseason'] };
     if (bucket !== 'overig') f.type = [bucket];
     return `/?${buildItemQuery(f)}`;
   }
