@@ -130,10 +130,11 @@ describe('multi-season storage + allseason filter', () => {
     expect(queryItems({ season: ['winter'] }).map((x) => x.id)).not.toContain(i.id);
   });
 
-  it('an allseason item surfaces under any specific-season filter', () => {
+  it('an allseason item is NOT pulled in by a specific-season filter (must be clicked explicitly)', () => {
     const all = createItem({ size: '80', seasons: ['allseason'] });
-    expect(queryItems({ season: ['winter'] }).map((x) => x.id)).toContain(all.id);
-    expect(queryItems({ season: ['zomer'] }).map((x) => x.id)).toContain(all.id);
+    expect(queryItems({ season: ['winter'] }).map((x) => x.id)).not.toContain(all.id);
+    expect(queryItems({ season: ['zomer'] }).map((x) => x.id)).not.toContain(all.id);
+    expect(queryItems({ season: ['allseason'] }).map((x) => x.id)).toContain(all.id);
   });
 
   it('item without seasons does not match a season filter', () => {

@@ -203,11 +203,11 @@ export function queryItems(filters: ItemFilters = {}): Item[] {
     where.push(`size IN (${wanted.map(() => '?').join(',')})`);
     params.push(...wanted);
   }
-  // season: item matcht als z'n lijst één van de gevraagde seizoenen bevat, OF
-  // 'allseason' (jaar-rond items horen onder elk specifiek seizoen). json_each
-  // op een NULL/lege kolom levert geen rijen → zo'n item matcht niet.
+  // season: item matcht als z'n lijst één van de gevraagde seizoenen bevat. 'allseason'
+  // wordt NIET impliciet meegenomen → expliciet aanklikken. json_each op een NULL/lege
+  // kolom levert geen rijen → zo'n item matcht niet.
   if (filters.season && filters.season.length) {
-    const wanted = Array.from(new Set([...filters.season, 'allseason']));
+    const wanted = filters.season;
     where.push(
       `EXISTS (SELECT 1 FROM json_each(item.season) WHERE value IN (${wanted.map(() => '?').join(',')}))`
     );
