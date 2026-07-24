@@ -1,6 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
   import { invalidateAll } from '$app/navigation';
+  import { setSyncPaused } from '$lib/client/liveSync';
   import ReviewCard from '$lib/components/ReviewCard.svelte';
   import Button from '$lib/components/Button.svelte';
   import Icon from '$lib/components/Icon.svelte';
@@ -26,6 +27,13 @@
   // 'nieuw' correct telt t.o.v. wat nu in het deck zit.
   let knownIds = $derived(new Set(deck.map((i) => i.id)));
   let errMsg = $state<string | null>(null);
+
+  // pauzeer live-sync tijdens het reviewen (anders reset een inkomende sync het deck);
+  // de badge-poll hieronder telt intussen nieuwe suggesties. Bij 'done' → hervat + laad.
+  $effect(() => {
+    setSyncPaused(!done && deck.length > 0);
+    return () => setSyncPaused(false);
+  });
 
   async function confirm(form: ItemFormValue) {
     const item = current;

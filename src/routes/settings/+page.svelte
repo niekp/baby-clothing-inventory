@@ -64,13 +64,6 @@
     if (res.ok) await invalidateAll();
     else msg = 'Starten mislukt';
   }
-
-  // poll zolang er cutouts in de wachtrij staan → live voortgang
-  $effect(() => {
-    if (data.cutouts.queued < 1) return;
-    const t = setInterval(() => void invalidateAll(), 5000);
-    return () => clearInterval(t);
-  });
 </script>
 
 <h1>Instellingen</h1>

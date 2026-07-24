@@ -12,13 +12,6 @@
 
   let { data }: { data: PageData } = $props();
 
-  // Live bijwerken zolang er items in verwerking zijn (worker tagt async).
-  $effect(() => {
-    if (data.aiCounts.processing === 0) return;
-    const id = setInterval(() => void invalidateAll(), 4000);
-    return () => clearInterval(id);
-  });
-
   let filterOpen = $state(false);
   let q = $state('');
   // seed/reset het zoekveld alleen als de genavigeerde zoekterm écht wijzigt

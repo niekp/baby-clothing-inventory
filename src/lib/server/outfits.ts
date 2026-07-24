@@ -1,4 +1,5 @@
 import { getDb } from './db';
+import { broadcast } from './events';
 import type { Item, Outfit, OutfitItem } from '$lib/types';
 
 export interface OutfitItemInput {
@@ -49,7 +50,9 @@ export function createOutfit(name: string, items: OutfitItemInput[]): Outfit {
     replaceItems(id, its);
     return id;
   });
-  return getOutfit(tx(name, items))!;
+  const outfit = getOutfit(tx(name, items))!;
+  broadcast();
+  return outfit;
 }
 
 export function updateOutfit(
@@ -65,6 +68,7 @@ export function updateOutfit(
     if (patch.items !== undefined) replaceItems(id, patch.items);
   });
   tx();
+  broadcast();
   return getOutfit(id);
 }
 
@@ -84,7 +88,9 @@ export function getOutfitWithItems(id: number): OutfitWithItems | undefined {
 
 export function deleteOutfit(id: number): boolean {
   // outfit_item cascadet via FK ON DELETE CASCADE
-  return getDb().prepare('DELETE FROM outfit WHERE id = ?').run(id).changes > 0;
+  const ok = getDb().prepare('DELETE FROM outfit WHERE id = ?').run(id).changes > 0;
+  if (ok) broadcast();
+  return ok;
 }
 
 // Herkent een FK-schending (bv. een niet-bestaand item_id in de layout) zodat de
@@ -97,4 +103,5 @@ export function isForeignKeyError(e: unknown): boolean {
 
 export function setOutfitThumb(id: number, thumbPath: string): void {
   getDb().prepare('UPDATE outfit SET thumb_path = ? WHERE id = ?').run(thumbPath, id);
+  broadcast();
 }

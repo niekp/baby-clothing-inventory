@@ -4,6 +4,7 @@ import { dirname } from 'node:path';
 import type { Child, Filterset, Item, ItemFilters, ItemInput } from '$lib/types';
 import { runMigrations } from './migrations';
 import { sizesMatchingFilter } from '$lib/config';
+import { broadcast } from './events';
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS item (
@@ -133,6 +134,7 @@ export function createItem(input: ItemInput): Item {
        VALUES (@size,@type,@length,@season,@quality,@favorite,@color,@note,@photo_orig,@photo_display,@ai_status,@created_at)`
     )
     .run(row);
+  broadcast();
   return getItem(Number(info.lastInsertRowid))!;
 }
 
@@ -158,12 +160,15 @@ export function updateItem(
   const setClause = keys.map((k) => `${k} = @${k}`).join(', ');
   const params: Record<string, unknown> = { id };
   for (const k of keys) params[k] = patch[k as keyof Item];
-  db.prepare(`UPDATE item SET ${setClause} WHERE id = @id`).run(params);
+  const changes = db.prepare(`UPDATE item SET ${setClause} WHERE id = @id`).run(params).changes;
+  if (changes) broadcast();
   return getItem(id);
 }
 
 export function deleteItem(id: number): boolean {
-  return getDb().prepare('DELETE FROM item WHERE id = ?').run(id).changes > 0;
+  const ok = getDb().prepare('DELETE FROM item WHERE id = ?').run(id).changes > 0;
+  if (ok) broadcast();
+  return ok;
 }
 
 // Eenvoudige key/value-meta (o.a. eenmalige data-taken bij startup).
@@ -280,13 +285,16 @@ export function enqueueCutout(id: number, model?: string): void {
   getDb()
     .prepare("UPDATE item SET cutout_job = 'queued:' || ? WHERE id = ?")
     .run(model ?? '', id);
+  broadcast();
 }
 
 // Alle items met display-foto in de cutout-wachtrij (bv. eenmalige her-generatie).
 export function enqueueAllCutouts(model?: string): number {
-  return getDb()
+  const n = getDb()
     .prepare("UPDATE item SET cutout_job = 'queued:' || ? WHERE photo_display IS NOT NULL")
     .run(model ?? '').changes;
+  if (n) broadcast();
+  return n;
 }
 
 // 'Scherp' = birefnet-general. NULL/isnet telt als niet-scherp.
@@ -313,13 +321,15 @@ export function countQueuedCutouts(): number {
 
 // Zet alle nog-niet-scherpe items (zonder lopende job) in de birefnet-queue. Retourneert count.
 export function enqueueSharpenAll(): number {
-  return getDb()
+  const n = getDb()
     .prepare(
       `UPDATE item SET cutout_job = 'queued:' || ?
        WHERE photo_display IS NOT NULL AND cutout_job IS NULL
          AND (cutout_model IS NULL OR cutout_model <> ?)`
     )
     .run(SHARP_MODEL, SHARP_MODEL).changes;
+  if (n) broadcast();
+  return n;
 }
 
 // Atomair de oudste queued-job naar 'working' tillen. Retourneert id + model (leeg = default).
@@ -337,27 +347,30 @@ export function claimNextCutout(): { id: number; model: string } | undefined {
 // Job afronden: uit de wachtrij halen (cutout_status is al door generateCutout gezet).
 export function clearCutoutJob(id: number): void {
   getDb().prepare('UPDATE item SET cutout_job = NULL WHERE id = ?').run(id);
+  broadcast();
 }
 
 // Worker schrijft z'n resultaat ALLEEN als 't item nog 'working' is. Heeft de
 // gebruiker 't ondertussen handmatig afgehandeld (done) of verwijderd, dan is de
 // update een no-op → geen overschrijven van handwerk. Retourneert of 't toesloeg.
 export function finishTagging(id: number, suggestionsJson: string): boolean {
-  return (
+  const ok =
     getDb()
       .prepare(
         "UPDATE item SET ai_suggestions = ?, ai_status = 'suggested' WHERE id = ? AND ai_status = 'working'"
       )
-      .run(suggestionsJson, id).changes > 0
-  );
+      .run(suggestionsJson, id).changes > 0;
+  if (ok) broadcast();
+  return ok;
 }
 
 export function failTagging(id: number): boolean {
-  return (
+  const ok =
     getDb()
       .prepare("UPDATE item SET ai_status = 'failed' WHERE id = ? AND ai_status = 'working'")
-      .run(id).changes > 0
-  );
+      .run(id).changes > 0;
+  if (ok) broadcast();
+  return ok;
 }
 
 // --- filterset CRUD ---
@@ -372,6 +385,7 @@ export function createFilterset(name: string, filterJson: string, pinned = 0): F
   const info = getDb()
     .prepare('INSERT INTO filterset (name, filter_json, pinned) VALUES (?, ?, ?)')
     .run(name, filterJson, pinned);
+  broadcast();
   return getDb()
     .prepare('SELECT * FROM filterset WHERE id = ?')
     .get(Number(info.lastInsertRowid)) as Filterset;
@@ -387,12 +401,15 @@ export function updateFilterset(
     const params: Record<string, unknown> = { id };
     for (const k of keys) params[k] = patch[k];
     getDb().prepare(`UPDATE filterset SET ${set} WHERE id = @id`).run(params);
+    broadcast();
   }
   return getDb().prepare('SELECT * FROM filterset WHERE id = ?').get(id) as Filterset | undefined;
 }
 
 export function deleteFilterset(id: number): boolean {
-  return getDb().prepare('DELETE FROM filterset WHERE id = ?').run(id).changes > 0;
+  const ok = getDb().prepare('DELETE FROM filterset WHERE id = ?').run(id).changes > 0;
+  if (ok) broadcast();
+  return ok;
 }
 
 // --- child CRUD ---
@@ -426,6 +443,7 @@ export function createChild(name: string, currentSizes: string[] = []): Child {
   const info = getDb()
     .prepare('INSERT INTO child (name, current_size) VALUES (?, ?)')
     .run(name, JSON.stringify(currentSizes));
+  broadcast();
   return getChild(Number(info.lastInsertRowid)) as Child;
 }
 
@@ -445,10 +463,13 @@ export function updateChild(
   }
   if (sets.length) {
     getDb().prepare(`UPDATE child SET ${sets.join(', ')} WHERE id = @id`).run(params);
+    broadcast();
   }
   return getChild(id);
 }
 
 export function deleteChild(id: number): boolean {
-  return getDb().prepare('DELETE FROM child WHERE id = ?').run(id).changes > 0;
+  const ok = getDb().prepare('DELETE FROM child WHERE id = ?').run(id).changes > 0;
+  if (ok) broadcast();
+  return ok;
 }

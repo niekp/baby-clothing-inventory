@@ -3,7 +3,8 @@
   import '$lib/styles/global.css';
   import NavBar from '$lib/components/NavBar.svelte';
   import { page } from '$app/state';
-  import { afterNavigate, beforeNavigate } from '$app/navigation';
+  import { afterNavigate, beforeNavigate, invalidateAll } from '$app/navigation';
+  import { startLiveSync } from '$lib/client/liveSync';
   import { onMount } from 'svelte';
   import type { Snippet } from 'svelte';
 
@@ -57,6 +58,9 @@
       clearInterval(id);
     };
   });
+
+  // Live-sync tussen apparaten: één SSE-verbinding → herlaad data bij elke mutatie.
+  onMount(() => startLiveSync(() => void invalidateAll()));
 
   // Scan-modus is echt fullscreen: geen tab-chrome (ook op /scan-sub-routes).
   let hideChrome = $derived(page.url.pathname.startsWith('/scan'));

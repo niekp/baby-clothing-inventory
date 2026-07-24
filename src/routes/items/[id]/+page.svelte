@@ -6,6 +6,7 @@
   import SuggestionBanner from '$lib/components/SuggestionBanner.svelte';
   import { suggestionPatch } from '$lib/suggestions';
   import { fileToNormalizedJpeg } from '$lib/client/capture';
+  import { setSyncPaused } from '$lib/client/liveSync';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -51,13 +52,6 @@
       : data.item.display_url
   );
 
-  // poll terwijl de cutout in de wachtrij/bezig is → werkt vanzelf bij zodra klaar
-  $effect(() => {
-    if (!cutoutBusy) return;
-    const t = setInterval(() => void invalidateAll(), 3000);
-    return () => clearInterval(t);
-  });
-
   const sameSet = (a: string[], b: string[]) =>
     a.length === b.length && [...a].sort().join(',') === [...b].sort().join(',');
 
@@ -70,6 +64,12 @@
       form.color !== (data.item.color ?? '') ||
       form.note !== (data.item.note ?? '')
   );
+
+  // pauzeer live-sync bij niet-opgeslagen wijzigingen (anders reset een inkomende sync het formulier)
+  $effect(() => {
+    setSyncPaused(dirty);
+    return () => setSyncPaused(false);
+  });
 
   async function patch(body: Record<string, unknown>) {
     msg = null;
