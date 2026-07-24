@@ -4,7 +4,8 @@ import { MIGRATIONS, runMigrations } from './migrations';
 
 const SCHEMA =
   'CREATE TABLE item (id INTEGER PRIMARY KEY AUTOINCREMENT, type TEXT, season TEXT, ai_suggestions TEXT);' +
-  'CREATE TABLE child (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, current_size TEXT)';
+  'CREATE TABLE child (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, current_size TEXT);' +
+  'CREATE TABLE outfit (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, thumb_path TEXT, created_at TEXT)';
 
 describe('runMigrations', () => {
   it('converts legacy bare-string season to a JSON array, leaves JSON/NULL alone', () => {

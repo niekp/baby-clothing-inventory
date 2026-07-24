@@ -1,8 +1,19 @@
 import { photoUrl } from './photos';
-import type { AiSuggestions, Item, Outfit } from '$lib/types';
+import type { AiSuggestions, CutoutStatus, Item, Outfit } from '$lib/types';
 
-export interface OutfitDTO extends Outfit {
+// Client-DTO van een outfit: interne wachtrij-velden (photo_orig/cutout_job/cutout_model)
+// worden niet meegestuurd; afgeleide URL's + is_photo/cutout_status wél.
+export interface OutfitDTO {
+  id: number;
+  name: string;
+  size: string | null;
+  thumb_path: string | null;
+  created_at: string;
+  cutout_status: CutoutStatus; // genormaliseerd (NULL → 'none')
+  is_photo: boolean;
   thumb_url: string | null;
+  thumb_small_url: string | null; // kleine webp voor de lijst (foto-outfit)
+  orig_download_url: string | null; // bronfoto (foto-outfit) voor de detail-fallback
 }
 
 // Eén layout-item in een outfit-GET (layout-velden + het geserialiseerde item).
@@ -19,7 +30,18 @@ export interface OutfitItemDTO {
 export type OutfitWithItemsDTO = OutfitDTO & { items: OutfitItemDTO[] };
 
 export function serializeOutfit(outfit: Outfit): OutfitDTO {
-  return { ...outfit, thumb_url: photoUrl('outfit', outfit.thumb_path) };
+  return {
+    id: outfit.id,
+    name: outfit.name,
+    size: outfit.size,
+    thumb_path: outfit.thumb_path,
+    created_at: outfit.created_at,
+    cutout_status: outfit.cutout_status ?? 'none',
+    is_photo: outfit.photo_orig != null,
+    thumb_url: photoUrl('outfit', outfit.thumb_path),
+    thumb_small_url: outfit.photo_orig ? photoUrl('outfit', `${outfit.id}.webp`) : null,
+    orig_download_url: outfit.photo_orig ? photoUrl('outfit_orig', outfit.photo_orig) : null
+  };
 }
 
 export interface ItemDTO extends Item {

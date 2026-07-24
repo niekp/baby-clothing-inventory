@@ -36,6 +36,8 @@
 <style>
   .navbar {
     display: flex;
+    position: relative;
+    z-index: 10; /* boven kaart-badges (z-index 2); onder bottomsheet (40/50) */
     background: var(--surface);
     border-top: 1px solid var(--border);
     padding-bottom: env(safe-area-inset-bottom); /* vrij van home-indicator (viewport-fit=cover) */

@@ -1,12 +1,26 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { createDb, createItem, deleteItem, setDbForTesting, type DB } from './db';
+import {
+  claimNextOutfitCutout,
+  clearOutfitCutoutJob,
+  createDb,
+  createItem,
+  deleteItem,
+  enqueueOutfitCutout,
+  setDbForTesting,
+  setOutfitCutoutResult,
+  sweepStuckWorking,
+  type DB
+} from './db';
 import {
   createOutfit,
   deleteOutfit,
+  getOutfit,
   getOutfitWithItems,
   listOutfits,
+  listOutfitSizes,
   updateOutfit
 } from './outfits';
+import { parseOutfitSize } from './outfit-validate';
 
 let db: DB;
 
@@ -81,5 +95,107 @@ describe('outfit CRUD', () => {
     deleteItem(a);
     const full = getOutfitWithItems(o.id)!;
     expect(full.items.map((i) => i.item_id)).toEqual([b]); // a weg, outfit blijft
+  });
+});
+
+describe('outfit size', () => {
+  it('creates an outfit without a size (optional)', () => {
+    const o = createOutfit('x', []);
+    expect(o.size).toBeNull();
+  });
+
+  it('creates an outfit with a size', () => {
+    const o = createOutfit('x', [], '68');
+    expect(o.size).toBe('68');
+  });
+
+  it('PATCH sets and clears the size', () => {
+    const o = createOutfit('x', [], '68');
+    expect(updateOutfit(o.id, { size: '74' })!.size).toBe('74');
+    expect(updateOutfit(o.id, { size: null })!.size).toBeNull();
+  });
+
+  it('PATCH without size does not touch the stored size', () => {
+    const o = createOutfit('x', [], '86');
+    updateOutfit(o.id, { name: 'y' }); // size niet meegestuurd
+    expect(getOutfit(o.id)!.size).toBe('86');
+  });
+
+  it('filters outfits by size, matching double sizes and excluding sizeless', () => {
+    createOutfit('a', [], '86');
+    createOutfit('b', [], '86/92');
+    createOutfit('c', [], '56');
+    createOutfit('d', []); // geen maat
+    const names = (sizes: string[]) => listOutfits(sizes).map((o) => o.name).sort();
+    expect(names(['86'])).toEqual(['a', 'b']); // 86 matcht ook 86/92, niet 56/maatloos
+    expect(names(['56'])).toEqual(['c']);
+    expect(listOutfits().map((o) => o.name).sort()).toEqual(['a', 'b', 'c', 'd']); // geen filter
+  });
+
+  it('listOutfitSizes returns distinct present sizes in chip order', () => {
+    createOutfit('a', [], '86');
+    createOutfit('b', [], '56');
+    createOutfit('c', [], '86'); // dubbel → distinct
+    createOutfit('d', []); // geen maat telt niet mee
+    expect(listOutfitSizes()).toEqual(['56', '86']); // SIZE_CHIPS-volgorde
+  });
+
+  it('parseOutfitSize keeps valid sizes, empty→null, invalid→400', () => {
+    expect(parseOutfitSize('68')).toBe('68'); // enkel
+    expect(parseOutfitSize('86/92')).toBe('86/92'); // dubbel
+    expect(parseOutfitSize('')).toBeNull(); // leeg → geen maat
+    expect(parseOutfitSize(undefined)).toBeNull();
+    expect(parseOutfitSize(null)).toBeNull();
+    expect(() => parseOutfitSize('999')).toThrow(); // ongeldige niet-lege → 400
+    expect(() => parseOutfitSize(42)).toThrow();
+  });
+});
+
+describe('outfit cutout queue', () => {
+  it('enqueue → claim (atomic queued→working) → clear', () => {
+    const o = createOutfit('x', []);
+    enqueueOutfitCutout(o.id); // leeg model = isnet
+    expect(getOutfit(o.id)!.cutout_job).toBe('queued:');
+
+    const job = claimNextOutfitCutout()!;
+    expect(job.id).toBe(o.id);
+    expect(job.model).toBe(''); // default
+    expect(getOutfit(o.id)!.cutout_job).toBe('working:');
+    expect(claimNextOutfitCutout()).toBeUndefined(); // niets meer te claimen
+
+    clearOutfitCutoutJob(o.id);
+    expect(getOutfit(o.id)!.cutout_job).toBeNull();
+  });
+
+  it('claim carries the explicit model', () => {
+    const o = createOutfit('x', []);
+    enqueueOutfitCutout(o.id, 'birefnet-general');
+    expect(claimNextOutfitCutout()!.model).toBe('birefnet-general');
+  });
+
+  it('setOutfitCutoutResult writes status/model/thumb, no-op when gone', () => {
+    const o = createOutfit('x', []);
+    setOutfitCutoutResult(o.id, {
+      cutout_status: 'done',
+      cutout_model: 'isnet-general-use',
+      thumb_path: `${o.id}.png`
+    });
+    const row = getOutfit(o.id)!;
+    expect(row.cutout_status).toBe('done');
+    expect(row.cutout_model).toBe('isnet-general-use');
+    expect(row.thumb_path).toBe(`${o.id}.png`);
+    // verwijderd → setter is een no-op (geen throw)
+    deleteOutfit(o.id);
+    expect(() => setOutfitCutoutResult(o.id, { cutout_status: 'done' })).not.toThrow();
+    expect(getOutfit(o.id)).toBeUndefined();
+  });
+
+  it('sweepStuckWorking requeues stuck outfit cutout jobs', () => {
+    const o = createOutfit('x', []);
+    enqueueOutfitCutout(o.id, 'birefnet-general');
+    claimNextOutfitCutout(); // → working:birefnet-general
+    expect(getOutfit(o.id)!.cutout_job).toBe('working:birefnet-general');
+    sweepStuckWorking();
+    expect(getOutfit(o.id)!.cutout_job).toBe('queued:birefnet-general');
   });
 });

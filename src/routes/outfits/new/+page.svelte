@@ -3,6 +3,7 @@
   import Button from '$lib/components/Button.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import { stack } from '$lib/client/stack.svelte';
+  import { mostCommonSize } from '$lib/client/outfit-size';
   import type { OutfitLayoutInput } from '$lib/types';
   import type { PageData } from './$types';
 
@@ -10,12 +11,17 @@
 
   // bron = de stapel; items uit de Kast resolven we naar volledige DTO's
   let stackItems = $derived(data.items.filter((i) => stack.has(i.id)));
+  let initialSize = $derived(mostCommonSize(stackItems.map((i) => i.size)));
 
-  async function create(name: string, items: OutfitLayoutInput[]): Promise<number | null> {
+  async function create(
+    name: string,
+    items: OutfitLayoutInput[],
+    size: string | null
+  ): Promise<number | null> {
     const res = await fetch('/api/outfits', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, items })
+      body: JSON.stringify({ name, items, size })
     });
     if (!res.ok) return null;
     return ((await res.json()) as { id: number }).id;
@@ -29,7 +35,7 @@
     <Button variant="primary" href="/"><Icon name="arrow-left" size={18} /> Naar de Kast</Button>
   </div>
 {:else}
-  <OutfitComposer items={stackItems} onsave={create} />
+  <OutfitComposer items={stackItems} {initialSize} onsave={create} />
 {/if}
 
 <style>

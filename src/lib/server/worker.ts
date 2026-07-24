@@ -1,20 +1,34 @@
 import {
   claimNextCutout,
+  claimNextOutfitCutout,
   claimNextProcessing,
   clearCutoutJob,
+  clearOutfitCutoutJob,
   enqueueAllCutouts,
+  enqueueOutfitCutout,
   failTagging,
   finishTagging,
   getItem,
   getMeta,
   setMeta,
+  setOutfitCutoutResult,
   sweepStuckWorking,
   updateItem
 } from './db';
 import sharp from 'sharp';
-import { normalizeCutout, readPhoto, saveCutout } from './photos';
+import {
+  normalizeCutout,
+  normalizeOutfitCutout,
+  readPhoto,
+  saveCutout,
+  saveOutfitCutoutThumb,
+  saveOutfitThumb
+} from './photos';
+import { getOutfit } from './outfits';
 import { tagImage } from './ai';
 import { cutout } from './rembg';
+
+const SHARP_MODEL = 'birefnet-general';
 
 const IDLE_MS = Number(process.env.WORKER_IDLE_MS ?? 3000);
 const TAG_RETRY_MS = Number(process.env.WORKER_TAG_RETRY_MS ?? 2000);
@@ -132,11 +146,59 @@ async function drainCutout(): Promise<boolean> {
   return true;
 }
 
+// Maakt de outfit-cutout via de sidecar. Guardt tegen een ondertussen verwijderde
+// outfit (geen wees-cutout). Retourneert het gebruikte model bij succes, anders null.
+export async function generateOutfitCutout(
+  id: number,
+  srcBytes: Uint8Array<ArrayBuffer>,
+  model?: string
+): Promise<string | null> {
+  try {
+    const png = await cutout(srcBytes, model);
+    if (!getOutfit(id)) return null; // outfit ondertussen verwijderd
+    const norm = await normalizeOutfitCutout(png).catch(() => png); // niet-fataal
+    await saveOutfitThumb(id, norm);
+    await saveOutfitCutoutThumb(id, norm);
+    const usedModel = model || 'isnet-general-use';
+    setOutfitCutoutResult(id, { cutout_status: 'done', cutout_model: usedModel, thumb_path: `${id}.png` });
+    return usedModel;
+  } catch (e) {
+    console.error(`[worker] outfit ${id} cutout mislukt:`, e);
+    try {
+      setOutfitCutoutResult(id, { cutout_status: 'failed' });
+    } catch {
+      /* db onbereikbaar */
+    }
+    return null;
+  }
+}
+
+// Verwerkt één outfit-cutout-job. Twee-traps: na een geslaagde isnet-cutout volgt
+// automatisch een birefnet-job. clear vóór de follow-enqueue, zodat de laatste
+// schrijf op cutout_job de nieuwe job is (niet de clear).
+export async function drainOutfitCutout(): Promise<boolean> {
+  const job = claimNextOutfitCutout();
+  if (!job) return false;
+  let usedModel: string | null = null;
+  try {
+    const outfit = getOutfit(job.id);
+    const file = outfit?.photo_orig ? await readPhoto('outfit_orig', outfit.photo_orig) : null;
+    if (file) usedModel = await generateOutfitCutout(job.id, file.data, job.model || undefined);
+    else setOutfitCutoutResult(job.id, { cutout_status: 'failed' });
+  } finally {
+    clearOutfitCutoutJob(job.id); // ook bij een mid-drain fout: geen vastgelopen 'working'
+  }
+  // enqueue ná de clear, zodat de follow-job de laatste schrijf op cutout_job is
+  if (usedModel && usedModel !== SHARP_MODEL) enqueueOutfitCutout(job.id, SHARP_MODEL); // twee-traps
+  return true;
+}
+
 async function loop(): Promise<void> {
   for (;;) {
     let did = false;
     try {
-      did = (await processOne()) || (await drainCutout()); // AI eerst (scan-tagging), dan cutouts
+      // AI eerst (scan-tagging); dan outfit-cutouts (interactief) vóór de item-cutout-drain
+      did = (await processOne()) || (await drainOutfitCutout()) || (await drainCutout());
     } catch (e) {
       // claim/db-fout: niet de lus laten sterven
       console.error('[worker] loop-fout:', e);

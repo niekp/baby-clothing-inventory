@@ -3,8 +3,8 @@ import { mkdirSync, statSync } from 'node:fs';
 import { readFile, unlink, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-export type Variant = 'orig' | 'disp' | 'cutout' | 'thumb' | 'outfit';
-const VARIANTS: Variant[] = ['orig', 'disp', 'cutout', 'thumb', 'outfit'];
+export type Variant = 'orig' | 'disp' | 'cutout' | 'thumb' | 'outfit' | 'outfit_orig';
+const VARIANTS: Variant[] = ['orig', 'disp', 'cutout', 'thumb', 'outfit', 'outfit_orig'];
 
 const DISPLAY_MAX = 1024;
 const DISPLAY_QUALITY = 80;
@@ -75,9 +75,16 @@ const CUTOUT_SIZE = 1024;
 const CUTOUT_FILL = 0.86; // kleding vult deze fractie van de vierkante tegel
 const CUTOUT_ALPHA_MIN = 16;
 
-export async function normalizeCutout(png: Uint8Array): Promise<Uint8Array> {
-  const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
-  // alpha-bbox zelf bepalen: sharp's kleur-trim faalt op rembg's willekeurige RGB onder alpha=0
+interface BBox {
+  minX: number;
+  minY: number;
+  maxX: number;
+  maxY: number;
+}
+
+// Alpha-bbox zelf bepalen: sharp's kleur-trim faalt op rembg's willekeurige RGB onder alpha=0.
+// null als er geen kledingpixels boven de alpha-drempel zijn.
+async function alphaBBox(png: Uint8Array): Promise<BBox | null> {
   const { data, info } = await sharp(Buffer.from(png))
     .ensureAlpha()
     .raw()
@@ -97,7 +104,14 @@ export async function normalizeCutout(png: Uint8Array): Promise<Uint8Array> {
       }
     }
   }
-  if (maxX < 0) return png; // geen kledingpixels → ongemoeid laten
+  return maxX < 0 ? null : { minX, minY, maxX, maxY };
+}
+
+export async function normalizeCutout(png: Uint8Array): Promise<Uint8Array> {
+  const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
+  const bbox = await alphaBBox(png);
+  if (!bbox) return png; // geen kledingpixels → ongemoeid laten
+  const { minX, minY, maxX, maxY } = bbox;
 
   const inner = Math.round(CUTOUT_SIZE * CUTOUT_FILL);
   const garment = await sharp(Buffer.from(png))
@@ -132,7 +146,30 @@ export async function saveCutout(id: number, png: Uint8Array): Promise<string> {
   return name;
 }
 
-// Schrijft een outfit-thumbnail (afgevlakte PNG) en geeft de bestandsnaam terug.
+// Foto-outfit-normalisatie: crop naar de kleding-bbox, aspect behouden, met wat
+// transparante marge — géén geforceerd vierkant (een outfit-flat-lay is vaak staand).
+const OUTFIT_MARGIN = 0.04; // marge als fractie van de langste bbox-zijde
+const OUTFIT_CUTOUT_MAX = 1024; // langste zijde begrensen (voorkomt full-res PNG's)
+
+export async function normalizeOutfitCutout(png: Uint8Array): Promise<Uint8Array> {
+  const transparent = { r: 0, g: 0, b: 0, alpha: 0 };
+  const bbox = await alphaBBox(png);
+  if (!bbox) return png; // geen kledingpixels → ongemoeid laten
+  const { minX, minY, maxX, maxY } = bbox;
+  const w = maxX - minX + 1;
+  const h = maxY - minY + 1;
+  const margin = Math.round(Math.max(w, h) * OUTFIT_MARGIN);
+  const out = await sharp(Buffer.from(png))
+    .ensureAlpha()
+    .extract({ left: minX, top: minY, width: w, height: h })
+    .extend({ top: margin, bottom: margin, left: margin, right: margin, background: transparent })
+    .resize(OUTFIT_CUTOUT_MAX, OUTFIT_CUTOUT_MAX, { fit: 'inside', withoutEnlargement: true })
+    .png()
+    .toBuffer();
+  return new Uint8Array(out);
+}
+
+// Schrijft een outfit-thumbnail/cutout (PNG) en geeft de bestandsnaam terug.
 export async function saveOutfitThumb(id: number, png: Uint8Array): Promise<string> {
   ensureDirs();
   const name = `${id}.png`;
@@ -140,10 +177,48 @@ export async function saveOutfitThumb(id: number, png: Uint8Array): Promise<stri
   return name;
 }
 
+// Kleine transparante webp-thumb van een foto-outfit-cutout (voor de lijst).
+export async function saveOutfitCutoutThumb(id: number, png: Uint8Array): Promise<void> {
+  ensureDirs();
+  try {
+    await sharp(Buffer.from(png))
+      .resize(THUMB_MAX, THUMB_MAX, { fit: 'inside', withoutEnlargement: true })
+      .webp({ quality: THUMB_QUALITY, alphaQuality: 90 })
+      .toFile(join(baseDir(), 'outfit', `${id}.webp`));
+  } catch {
+    /* thumb is optioneel; lijst valt terug op de PNG */
+  }
+}
+
+// Schrijft de bronfoto van een foto-outfit en geeft de bestandsnaam terug.
+export async function saveOutfitOrig(id: number, buffer: Buffer, ext: string): Promise<string> {
+  ensureDirs();
+  const name = `${id}.${ext}`;
+  await writeFile(join(baseDir(), 'outfit_orig', name), buffer);
+  return name;
+}
+
 // Verwijdert een outfit-thumbnail (ontbrekend bestand negeren).
 export async function deleteOutfitThumb(thumbPath: string | null): Promise<void> {
   if (!thumbPath) return;
   await unlink(join(baseDir(), 'outfit', thumbPath)).catch(() => {});
+}
+
+// Verwijdert alle bestanden van een foto-outfit (bron + cutout-PNG + webp-thumb).
+export async function deleteOutfitPhotos(names: {
+  photo_orig?: string | null;
+  thumb_path?: string | null;
+}): Promise<void> {
+  const targets: [Variant, string | null | undefined][] = [
+    ['outfit_orig', names.photo_orig],
+    ['outfit', names.thumb_path],
+    ['outfit', names.thumb_path ? names.thumb_path.replace(/\.png$/, '.webp') : null]
+  ];
+  await Promise.all(
+    targets
+      .filter(([, n]) => n)
+      .map(([v, n]) => unlink(join(baseDir(), v, n as string)).catch(() => {}))
+  );
 }
 
 // Verwijdert alle varianten van een item; ontbrekende bestanden negeren.

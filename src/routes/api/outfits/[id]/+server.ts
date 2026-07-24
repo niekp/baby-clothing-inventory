@@ -8,8 +8,8 @@ import {
   updateOutfit
 } from '$lib/server/outfits';
 import { serializeItem, serializeOutfit } from '$lib/server/serialize';
-import { deleteOutfitThumb } from '$lib/server/photos';
-import { parseLayout } from '$lib/server/outfit-validate';
+import { deleteOutfitPhotos, deleteOutfitThumb } from '$lib/server/photos';
+import { parseLayout, parseOutfitSize } from '$lib/server/outfit-validate';
 
 function parseId(raw: string): number {
   const id = Number(raw);
@@ -37,20 +37,25 @@ export const GET: RequestHandler = ({ params }) => {
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
   const id = parseId(params.id);
-  let body: { name?: unknown; items?: unknown };
+  let body: { name?: unknown; items?: unknown; size?: unknown };
   try {
     body = await request.json();
   } catch {
     error(400, 'Ongeldige JSON');
   }
   if (!body || typeof body !== 'object') error(400, 'Ongeldige body');
-  const patch: { name?: string; items?: ReturnType<typeof parseLayout> } = {};
+  const patch: { name?: string; items?: ReturnType<typeof parseLayout>; size?: string | null } = {};
   if (typeof body.name === 'string') {
     const n = body.name.trim();
     if (!n) error(400, 'Naam mag niet leeg zijn');
     patch.name = n;
   }
-  if ('items' in body) patch.items = parseLayout(body.items);
+  if ('size' in body) patch.size = parseOutfitSize(body.size);
+  if ('items' in body) {
+    // hybride-guard: een foto-outfit mag geen sleep-layout krijgen
+    if (getOutfit(id)?.photo_orig) error(400, 'Foto-outfit heeft geen layout-items');
+    patch.items = parseLayout(body.items);
+  }
 
   try {
     const updated = updateOutfit(id, patch);
@@ -66,7 +71,12 @@ export const DELETE: RequestHandler = async ({ params }) => {
   const id = parseId(params.id);
   const outfit = getOutfit(id);
   if (!outfit) error(404, 'Niet gevonden');
-  await deleteOutfitThumb(outfit.thumb_path); // geen wees-thumbnail achterlaten
+  // foto-outfit: bron + cutout-PNG + webp opruimen; item-outfit: alleen de thumb
+  if (outfit.photo_orig) {
+    await deleteOutfitPhotos({ photo_orig: outfit.photo_orig, thumb_path: outfit.thumb_path });
+  } else {
+    await deleteOutfitThumb(outfit.thumb_path);
+  }
   deleteOutfit(id);
   return new Response(null, { status: 204 });
 };

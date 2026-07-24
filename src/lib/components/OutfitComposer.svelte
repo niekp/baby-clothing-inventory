@@ -3,6 +3,7 @@
   import { goto } from '$app/navigation';
   import OutfitCanvas from './OutfitCanvas.svelte';
   import ItemPicker from './ItemPicker.svelte';
+  import SizeChips from './SizeChips.svelte';
   import Button from './Button.svelte';
   import Icon from './Icon.svelte';
   import { W, H, type Placed } from '$lib/client/outfit-canvas-space';
@@ -13,17 +14,20 @@
   let {
     items,
     initialName = '',
+    initialSize = '',
     initialPlaced = [],
     onsave
   }: {
     items: ItemDTO[];
     initialName?: string;
+    initialSize?: string;
     initialPlaced?: Placed[];
-    onsave: (name: string, layout: OutfitLayoutInput[]) => Promise<number | null>;
+    onsave: (name: string, layout: OutfitLayoutInput[], size: string | null) => Promise<number | null>;
   } = $props();
 
   // seed lokale state één keer uit de props (composer remount per pagina)
   let name = $state(untrack(() => initialName));
+  let size = $state(untrack(() => initialSize));
   let placed = $state<Placed[]>(untrack(() => [...initialPlaced]));
   let selectedKey = $state<number | null>(null);
   let saving = $state(false);
@@ -87,7 +91,7 @@
       rotation: p.rotation,
       z_index: p.z
     }));
-    const id = await onsave(name.trim(), layout);
+    const id = await onsave(name.trim(), layout, size || null);
     if (id == null) {
       msg = 'Opslaan mislukt';
       saving = false;
@@ -120,6 +124,11 @@
 
 <OutfitCanvas bind:placed bind:selectedKey />
 
+<div class="size-field">
+  <p class="field-label">Maat (optioneel)</p>
+  <SizeChips current={size} onpick={(s) => (size = s)} />
+</div>
+
 {#if selectedKey != null}
   <div class="tools">
     <Button variant="ghost" onclick={bringFront}><Icon name="arrow-up" size={16} /> Voor</Button>
@@ -147,6 +156,9 @@
     color: var(--danger);
     font-size: var(--fs-sm);
     margin: 0 0 var(--space-2);
+  }
+  .size-field {
+    margin: var(--space-3) 0;
   }
   .tools {
     display: flex;

@@ -47,7 +47,12 @@ export interface Filterset {
 export interface Outfit {
   id: number;
   name: string;
+  size: string | null;
   thumb_path: string | null;
+  photo_orig: string | null; // foto-outfit bronfoto (<id>.<ext> in outfit_orig); NULL = item-outfit
+  cutout_status: CutoutStatus | null; // NULL telt als 'none' (kolom heeft geen DEFAULT)
+  cutout_model: string | null; // 'birefnet-general' = scherp; else niet-scherp
+  cutout_job: string | null; // cutout-wachtrij: 'queued:<model>' / 'working:<model>' / null
   created_at: string;
 }
 

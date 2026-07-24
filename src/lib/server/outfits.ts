@@ -1,5 +1,6 @@
 import { getDb } from './db';
 import { broadcast } from './events';
+import { sizesMatchingFilter, SIZE_CHIPS } from '$lib/config';
 import type { Item, Outfit, OutfitItem } from '$lib/types';
 
 export interface OutfitItemInput {
@@ -20,12 +21,32 @@ export interface OutfitWithItems {
   items: OutfitItemWithItem[];
 }
 
-export function listOutfits(): Outfit[] {
+// Optioneel maat-filter: outfits waarvan de maat overlapt met een gevraagde maat
+// (86 matcht ook 86/92, via sizesMatchingFilter — consistent met de kast). Outfits
+// zonder maat vallen buiten een actief filter.
+export function listOutfits(sizes?: string[]): Outfit[] {
+  if (sizes && sizes.length) {
+    const wanted = sizesMatchingFilter(sizes);
+    if (!wanted.length) return [];
+    const placeholders = wanted.map(() => '?').join(',');
+    return getDb()
+      .prepare(`SELECT * FROM outfit WHERE size IN (${placeholders}) ORDER BY created_at DESC`)
+      .all(...wanted) as Outfit[];
+  }
   return getDb().prepare('SELECT * FROM outfit ORDER BY created_at DESC').all() as Outfit[];
 }
 
 export function getOutfit(id: number): Outfit | undefined {
   return getDb().prepare('SELECT * FROM outfit WHERE id = ?').get(id) as Outfit | undefined;
+}
+
+// Distinct maten die op outfits voorkomen (voor de filterbalk), in SIZE_CHIPS-volgorde.
+export function listOutfitSizes(): string[] {
+  const rows = getDb()
+    .prepare('SELECT DISTINCT size FROM outfit WHERE size IS NOT NULL')
+    .all() as { size: string }[];
+  const present = new Set(rows.map((r) => r.size));
+  return SIZE_CHIPS.filter((s) => present.has(s));
 }
 
 function replaceItems(outfitId: number, items: OutfitItemInput[]): void {
@@ -40,12 +61,16 @@ function replaceItems(outfitId: number, items: OutfitItemInput[]): void {
   }
 }
 
-export function createOutfit(name: string, items: OutfitItemInput[]): Outfit {
+export function createOutfit(
+  name: string,
+  items: OutfitItemInput[],
+  size: string | null = null
+): Outfit {
   const db = getDb();
   const tx = db.transaction((n: string, its: OutfitItemInput[]) => {
     const info = db
-      .prepare('INSERT INTO outfit (name, created_at) VALUES (?, ?)')
-      .run(n, new Date().toISOString());
+      .prepare('INSERT INTO outfit (name, size, created_at) VALUES (?, ?, ?)')
+      .run(n, size, new Date().toISOString());
     const id = Number(info.lastInsertRowid);
     replaceItems(id, its);
     return id;
@@ -57,13 +82,16 @@ export function createOutfit(name: string, items: OutfitItemInput[]): Outfit {
 
 export function updateOutfit(
   id: number,
-  patch: { name?: string; items?: OutfitItemInput[] }
+  patch: { name?: string; items?: OutfitItemInput[]; size?: string | null }
 ): Outfit | undefined {
   const db = getDb();
   if (!getOutfit(id)) return undefined;
   const tx = db.transaction(() => {
     if (patch.name !== undefined) {
       db.prepare('UPDATE outfit SET name = ? WHERE id = ?').run(patch.name, id);
+    }
+    if (patch.size !== undefined) {
+      db.prepare('UPDATE outfit SET size = ? WHERE id = ?').run(patch.size, id);
     }
     if (patch.items !== undefined) replaceItems(id, patch.items);
   });
@@ -103,5 +131,11 @@ export function isForeignKeyError(e: unknown): boolean {
 
 export function setOutfitThumb(id: number, thumbPath: string): void {
   getDb().prepare('UPDATE outfit SET thumb_path = ? WHERE id = ?').run(thumbPath, id);
+  broadcast();
+}
+
+// Markeert een outfit als foto-outfit door de bronfoto-bestandsnaam te zetten.
+export function setOutfitPhotoOrig(id: number, photoOrig: string): void {
+  getDb().prepare('UPDATE outfit SET photo_orig = ? WHERE id = ?').run(photoOrig, id);
   broadcast();
 }

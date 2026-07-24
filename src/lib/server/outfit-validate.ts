@@ -1,5 +1,14 @@
 import { error } from '@sveltejs/kit';
+import { isSize } from '$lib/config';
 import type { OutfitItemInput } from './outfits';
+
+// Maat uit een request: leeg/afwezig → null (geen maat); geldige maat → string;
+// ongeldige niet-lege waarde → 400 (consistent met item-maat, geen stille wis).
+export function parseOutfitSize(raw: unknown): string | null {
+  if (raw === undefined || raw === null || raw === '') return null;
+  if (typeof raw !== 'string' || !isSize(raw)) error(400, 'Ongeldige maat');
+  return raw;
+}
 
 // Valideert + normaliseert de layout-array uit een request. Gooit 400 bij onzin.
 export function parseLayout(raw: unknown): OutfitItemInput[] {

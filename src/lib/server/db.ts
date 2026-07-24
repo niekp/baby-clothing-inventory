@@ -1,7 +1,7 @@
 import Database from 'better-sqlite3';
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
-import type { Child, Filterset, Item, ItemFilters, ItemInput } from '$lib/types';
+import type { Child, CutoutStatus, Filterset, Item, ItemFilters, ItemInput } from '$lib/types';
 import { runMigrations } from './migrations';
 import { sizesMatchingFilter } from '$lib/config';
 import { broadcast } from './events';
@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS outfit (
   name TEXT NOT NULL,
   thumb_path TEXT,
   created_at TEXT NOT NULL
+  -- size + foto-outfit-kolommen (photo_orig/cutout_*) via guarded ALTER in migrations.ts
 );
 
 CREATE TABLE IF NOT EXISTS outfit_item (
@@ -268,14 +269,17 @@ export function claimNextProcessing(): Item | undefined {
     .get() as Item | undefined;
 }
 
-// Bij opstart: vastgelopen 'working' terug naar de wachtrij (AI én cutout).
+// Bij opstart: vastgelopen 'working' terug naar de wachtrij (AI, item-cutout én outfit-cutout).
 export function sweepStuckWorking(): number {
   const db = getDb();
   const ai = db.prepare("UPDATE item SET ai_status='processing' WHERE ai_status='working'").run().changes;
   const cut = db
     .prepare("UPDATE item SET cutout_job = 'queued:' || substr(cutout_job, 9) WHERE cutout_job LIKE 'working:%'")
     .run().changes;
-  return ai + cut;
+  const outfitCut = db
+    .prepare("UPDATE outfit SET cutout_job = 'queued:' || substr(cutout_job, 9) WHERE cutout_job LIKE 'working:%'")
+    .run().changes;
+  return ai + cut + outfitCut;
 }
 
 // --- cutout-wachtrij (cutout_job: 'queued:<model>' / 'working:<model>' / NULL) ---
@@ -348,6 +352,52 @@ export function claimNextCutout(): { id: number; model: string } | undefined {
 export function clearCutoutJob(id: number): void {
   getDb().prepare('UPDATE item SET cutout_job = NULL WHERE id = ?').run(id);
   broadcast();
+}
+
+// --- outfit-cutout-wachtrij (parallel aan de item-queue; op de outfit-tabel) ---
+
+// Zet een (re)cutout-job voor een outfit in de wachtrij. model leeg → sidecar-default (isnet).
+export function enqueueOutfitCutout(id: number, model?: string): void {
+  getDb().prepare("UPDATE outfit SET cutout_job = 'queued:' || ? WHERE id = ?").run(model ?? '', id);
+  broadcast();
+}
+
+// Atomair de oudste outfit-cutout-job naar 'working' tillen. Retourneert id + model (leeg = default).
+export function claimNextOutfitCutout(): { id: number; model: string } | undefined {
+  return getDb()
+    .prepare(
+      `UPDATE outfit SET cutout_job = 'working:' || substr(cutout_job, 8)
+       WHERE id = (SELECT id FROM outfit WHERE cutout_job LIKE 'queued:%' ORDER BY created_at LIMIT 1)
+       RETURNING id, substr(cutout_job, 9) AS model`
+    )
+    .get() as { id: number; model: string } | undefined;
+}
+
+// Outfit-cutout-job uit de wachtrij halen.
+export function clearOutfitCutoutJob(id: number): void {
+  getDb().prepare('UPDATE outfit SET cutout_job = NULL WHERE id = ?').run(id);
+  broadcast();
+}
+
+// Resultaat van een outfit-cutout wegschrijven (no-op als de outfit ondertussen weg is).
+export function setOutfitCutoutResult(
+  id: number,
+  result: { cutout_status: CutoutStatus; cutout_model?: string; thumb_path?: string }
+): void {
+  const sets = ['cutout_status = @cutout_status'];
+  const params: Record<string, unknown> = { id, cutout_status: result.cutout_status };
+  if (result.cutout_model !== undefined) {
+    sets.push('cutout_model = @cutout_model');
+    params.cutout_model = result.cutout_model;
+  }
+  if (result.thumb_path !== undefined) {
+    sets.push('thumb_path = @thumb_path');
+    params.thumb_path = result.thumb_path;
+  }
+  const changes = getDb()
+    .prepare(`UPDATE outfit SET ${sets.join(', ')} WHERE id = @id`)
+    .run(params).changes;
+  if (changes) broadcast();
 }
 
 // Worker schrijft z'n resultaat ALLEEN als 't item nog 'working' is. Heeft de

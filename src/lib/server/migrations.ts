@@ -81,6 +81,25 @@ export const MIGRATIONS: Migration[] = [
     // 'isnet-general-use' = snel/default). NULL = onbekend (van vóór deze kolom) → telt als niet-scherp.
     name: 'add-item-cutout-model',
     up: (db) => addColumnIfMissing(db, 'item', 'cutout_model', 'TEXT')
+  },
+  {
+    // outfit.size: optionele maat van een outfit (enkel of dubbel, string; NULL = geen maat)
+    name: 'add-outfit-size',
+    up: (db) => addColumnIfMissing(db, 'outfit', 'size', 'TEXT')
+  },
+  {
+    // foto-outfit: bronfoto + eigen cutout-wachtrij (parallel aan de item-queue).
+    // photo_orig != NULL = foto-outfit; cutout_status NULL telt als 'none'.
+    name: 'add-outfit-photo-cutout',
+    up: (db) => {
+      addColumnIfMissing(db, 'outfit', 'photo_orig', 'TEXT');
+      addColumnIfMissing(db, 'outfit', 'cutout_status', 'TEXT');
+      addColumnIfMissing(db, 'outfit', 'cutout_model', 'TEXT');
+      addColumnIfMissing(db, 'outfit', 'cutout_job', 'TEXT');
+      db.prepare(
+        'CREATE INDEX IF NOT EXISTS idx_outfit_cutout_job ON outfit(cutout_job) WHERE cutout_job IS NOT NULL'
+      ).run();
+    }
   }
 ];
 

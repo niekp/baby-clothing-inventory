@@ -16,7 +16,18 @@ afterAll(() => {
 });
 
 // dynamische import na het zetten van PHOTOS_DIR (baseDir() leest lazily, dus ok)
-const { savePhoto, readPhoto, deletePhotos, extForMime, normalizeCutout } = await import('./photos');
+const {
+  savePhoto,
+  readPhoto,
+  deletePhotos,
+  extForMime,
+  normalizeCutout,
+  normalizeOutfitCutout,
+  saveOutfitOrig,
+  saveOutfitThumb,
+  saveOutfitCutoutThumb,
+  deleteOutfitPhotos
+} = await import('./photos');
 
 async function jpegBuffer(w = 200, h = 200): Promise<Buffer> {
   return sharp({ create: { width: w, height: h, channels: 3, background: '#c33' } })
@@ -142,5 +153,75 @@ describe('normalizeCutout', () => {
       .toBuffer();
     const out = await normalizeCutout(empty);
     expect(out.length).toBe(empty.length);
+  });
+});
+
+describe('normalizeOutfitCutout', () => {
+  async function withBlock(W: number, H: number, bw: number, bh: number, left: number, top: number) {
+    const block = await sharp({
+      create: { width: bw, height: bh, channels: 4, background: { r: 220, g: 20, b: 20, alpha: 1 } }
+    })
+      .png()
+      .toBuffer();
+    return sharp({ create: { width: W, height: H, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+      .composite([{ input: block, top, left }])
+      .png()
+      .toBuffer();
+  }
+
+  it('behoudt de aspect (staande input → geen geforceerd vierkant)', async () => {
+    // staand blok 80x300 op een groter kader
+    const out = await normalizeOutfitCutout(await withBlock(600, 800, 80, 300, 100, 100));
+    const meta = await sharp(out).metadata();
+    // hoogte duidelijk groter dan breedte → aspect behouden, niet 1:1
+    expect((meta.height ?? 0) / (meta.width ?? 1)).toBeGreaterThan(2);
+    // bijgesneden tot ~bbox + marge, dus veel kleiner dan het bronkader
+    expect(meta.width).toBeLessThan(200);
+  });
+
+  it('laat een volledig transparante afbeelding ongemoeid', async () => {
+    const empty = await sharp({
+      create: { width: 100, height: 100, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } }
+    })
+      .png()
+      .toBuffer();
+    const out = await normalizeOutfitCutout(empty);
+    expect(out.length).toBe(empty.length);
+  });
+});
+
+describe('outfit photo files', () => {
+  async function pngBlock() {
+    return sharp({ create: { width: 64, height: 96, channels: 4, background: { r: 10, g: 200, b: 10, alpha: 1 } } })
+      .png()
+      .toBuffer();
+  }
+
+  it('saveOutfitOrig writes to outfit_orig and readPhoto reads it back', async () => {
+    await saveOutfitOrig(7, await jpegBuffer(), 'jpg');
+    expect(existsSync(join(tmp, 'outfit_orig', '7.jpg'))).toBe(true);
+    const f = await readPhoto('outfit_orig', '7.jpg');
+    expect(f?.contentType).toBe('image/jpeg');
+    expect((f?.data.length ?? 0) > 0).toBe(true);
+  });
+
+  it('cutout PNG + webp thumb land in the outfit variant (no item id collision)', async () => {
+    const png = await pngBlock();
+    await saveOutfitThumb(7, png);
+    await saveOutfitCutoutThumb(7, png);
+    expect(existsSync(join(tmp, 'outfit', '7.png'))).toBe(true);
+    expect(existsSync(join(tmp, 'outfit', '7.webp'))).toBe(true);
+    // aparte map van item-cutouts → geen botsing met cutout/7.png
+    expect(existsSync(join(tmp, 'cutout', '7.png'))).toBe(false);
+  });
+
+  it('deleteOutfitPhotos removes source, cutout PNG and webp thumb', async () => {
+    await saveOutfitOrig(8, await jpegBuffer(), 'jpg');
+    await saveOutfitThumb(8, await pngBlock());
+    await saveOutfitCutoutThumb(8, await pngBlock());
+    await deleteOutfitPhotos({ photo_orig: '8.jpg', thumb_path: '8.png' });
+    expect(existsSync(join(tmp, 'outfit_orig', '8.jpg'))).toBe(false);
+    expect(existsSync(join(tmp, 'outfit', '8.png'))).toBe(false);
+    expect(existsSync(join(tmp, 'outfit', '8.webp'))).toBe(false);
   });
 });

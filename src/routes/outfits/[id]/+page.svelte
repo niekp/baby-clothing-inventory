@@ -24,11 +24,26 @@
 <header class="bar">
   <a href="/outfits" class="back" aria-label="Terug"><Icon name="arrow-left" size={22} /></a>
   <h1>{data.outfit.name}</h1>
+  {#if data.outfit.size}<span class="size">{data.outfit.size}</span>{/if}
 </header>
 
 {#if msg}<p class="err" role="alert">{msg}</p>{/if}
 
-{#if placed.length > 0}
+{#if data.outfit.is_photo}
+  {#if data.outfit.cutout_status === 'done' && data.outfit.thumb_url}
+    <div class="photo"><img src={data.outfit.thumb_url} alt={data.outfit.name} /></div>
+  {:else if data.outfit.cutout_status === 'failed'}
+    <div class="photo state">
+      {#if data.outfit.orig_download_url}<img src={data.outfit.orig_download_url} alt={data.outfit.name} />{/if}
+      <p class="badge fail"><Icon name="alert" size={14} /> Cutout mislukt — originele foto getoond</p>
+    </div>
+  {:else}
+    <div class="photo state">
+      {#if data.outfit.orig_download_url}<img src={data.outfit.orig_download_url} alt={data.outfit.name} />{/if}
+      <p class="badge work"><Icon name="loader" size={14} spin /> Cutout wordt gemaakt…</p>
+    </div>
+  {/if}
+{:else if placed.length > 0}
   <OutfitCanvas {placed} readonly />
 {:else}
   <p class="muted">Deze outfit heeft geen items meer (mogelijk verwijderd).</p>
@@ -52,6 +67,14 @@
     margin: 0;
     font-size: var(--fs-xl);
   }
+  .size {
+    background: var(--surface-2);
+    color: var(--text);
+    font-weight: 700;
+    font-size: var(--fs-sm);
+    padding: 2px 10px;
+    border-radius: 999px;
+  }
   .back {
     font-size: var(--fs-xl);
   }
@@ -65,5 +88,36 @@
     gap: var(--space-3);
     justify-content: center;
     margin-top: var(--space-4);
+  }
+  .photo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-2);
+  }
+  .photo img {
+    max-width: 100%;
+    max-height: 70vh;
+    object-fit: contain;
+    border-radius: var(--radius);
+  }
+  .photo.state img {
+    opacity: 0.6;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    font-size: var(--fs-sm);
+    border-radius: 999px;
+    padding: var(--space-2) var(--space-3);
+  }
+  .badge.work {
+    background: var(--surface-2);
+    color: var(--text-muted);
+  }
+  .badge.fail {
+    background: color-mix(in srgb, var(--danger) 15%, transparent);
+    color: var(--danger);
   }
 </style>
