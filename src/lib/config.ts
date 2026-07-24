@@ -1,6 +1,6 @@
 // Vaste lijsten — gedeeld door client en server.
 
-export const SIZES = [50, 56, 62, 68, 74, 80, 86, 92, 98, 104, 110, 116, 122, 128] as const;
+export const SIZES = [44, 50, 56, 62, 68, 74, 80, 86, 92, 98, 104, 110, 116, 122, 128] as const;
 
 // Maten als strings (db slaat maat als tekst op).
 export const SIZE_STRINGS: string[] = SIZES.map(String);
