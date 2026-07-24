@@ -2,10 +2,13 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
   claimNextOutfitCutout,
   clearOutfitCutoutJob,
+  countNotSharp,
+  countQueuedCutouts,
   createDb,
   createItem,
   deleteItem,
   enqueueOutfitCutout,
+  enqueueSharpenAll,
   setDbForTesting,
   setOutfitCutoutResult,
   sweepStuckWorking,
@@ -18,6 +21,7 @@ import {
   getOutfitWithItems,
   listOutfits,
   listOutfitSizes,
+  setOutfitPhotoOrig,
   updateOutfit
 } from './outfits';
 import { parseOutfitSize } from './outfit-validate';
@@ -197,5 +201,32 @@ describe('outfit cutout queue', () => {
     expect(getOutfit(o.id)!.cutout_job).toBe('working:birefnet-general');
     sweepStuckWorking();
     expect(getOutfit(o.id)!.cutout_job).toBe('queued:birefnet-general');
+  });
+});
+
+describe('bulk sharpen covers foto-outfits', () => {
+  // maakt een foto-outfit met een gegeven cutout_model (null = niet-scherp)
+  function photoOutfit(model: string | null): number {
+    const o = createOutfit('look', []);
+    setOutfitPhotoOrig(o.id, `${o.id}.jpg`);
+    if (model) setOutfitCutoutResult(o.id, { cutout_status: 'done', cutout_model: model });
+    return o.id;
+  }
+
+  it('countNotSharp telt niet-scherpe foto-outfits mee, niet de scherpe of item-outfits', () => {
+    photoOutfit(null); // niet-scherp foto-outfit → telt
+    photoOutfit('birefnet-general'); // al scherp → telt niet
+    createOutfit('sleep', []); // item-outfit (geen photo_orig) → telt niet
+    expect(countNotSharp()).toBe(1);
+  });
+
+  it('enqueueSharpenAll zet niet-scherpe foto-outfits in de birefnet-queue', () => {
+    const notSharp = photoOutfit(null);
+    const sharp = photoOutfit('birefnet-general');
+    const n = enqueueSharpenAll();
+    expect(n).toBe(1);
+    expect(getOutfit(notSharp)!.cutout_job).toBe('queued:birefnet-general');
+    expect(getOutfit(sharp)!.cutout_job).toBeNull(); // al scherp → niet aangeraakt
+    expect(countQueuedCutouts()).toBe(1);
   });
 });

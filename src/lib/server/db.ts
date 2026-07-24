@@ -304,34 +304,54 @@ export function enqueueAllCutouts(model?: string): number {
 // 'Scherp' = birefnet-general. NULL/isnet telt als niet-scherp.
 const SHARP_MODEL = 'birefnet-general';
 
-// Aantal items-met-foto waarvan de huidige cutout nog niet scherp is.
+// Aantal items-met-foto én foto-outfits waarvan de huidige cutout nog niet scherp is.
 export function countNotSharp(): number {
-  return (
-    getDb()
+  const db = getDb();
+  const items = (
+    db
       .prepare(
         `SELECT count(*) AS n FROM item
          WHERE photo_display IS NOT NULL AND (cutout_model IS NULL OR cutout_model <> ?)`
       )
       .get(SHARP_MODEL) as { n: number }
   ).n;
-}
-
-// Aantal items met een lopende/wachtende cutout-job.
-export function countQueuedCutouts(): number {
-  return (
-    getDb().prepare('SELECT count(*) AS n FROM item WHERE cutout_job IS NOT NULL').get() as { n: number }
+  const outfits = (
+    db
+      .prepare(
+        `SELECT count(*) AS n FROM outfit
+         WHERE photo_orig IS NOT NULL AND (cutout_model IS NULL OR cutout_model <> ?)`
+      )
+      .get(SHARP_MODEL) as { n: number }
   ).n;
+  return items + outfits;
 }
 
-// Zet alle nog-niet-scherpe items (zonder lopende job) in de birefnet-queue. Retourneert count.
+// Aantal items + foto-outfits met een lopende/wachtende cutout-job.
+export function countQueuedCutouts(): number {
+  const db = getDb();
+  const items = (db.prepare('SELECT count(*) AS n FROM item WHERE cutout_job IS NOT NULL').get() as { n: number }).n;
+  const outfits = (db.prepare('SELECT count(*) AS n FROM outfit WHERE cutout_job IS NOT NULL').get() as { n: number }).n;
+  return items + outfits;
+}
+
+// Zet alle nog-niet-scherpe items én foto-outfits (zonder lopende job) in de birefnet-queue. Retourneert count.
 export function enqueueSharpenAll(): number {
-  const n = getDb()
+  const db = getDb();
+  const items = db
     .prepare(
       `UPDATE item SET cutout_job = 'queued:' || ?
        WHERE photo_display IS NOT NULL AND cutout_job IS NULL
          AND (cutout_model IS NULL OR cutout_model <> ?)`
     )
     .run(SHARP_MODEL, SHARP_MODEL).changes;
+  const outfits = db
+    .prepare(
+      `UPDATE outfit SET cutout_job = 'queued:' || ?
+       WHERE photo_orig IS NOT NULL AND cutout_job IS NULL
+         AND (cutout_model IS NULL OR cutout_model <> ?)`
+    )
+    .run(SHARP_MODEL, SHARP_MODEL).changes;
+  const n = items + outfits;
   if (n) broadcast();
   return n;
 }

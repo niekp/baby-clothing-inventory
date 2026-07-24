@@ -2,10 +2,11 @@ import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { mkdtempSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createDb, setDbForTesting, type DB } from '$lib/server/db';
+import { clearOutfitCutoutJob, createDb, setDbForTesting, type DB } from '$lib/server/db';
 import { getOutfit } from '$lib/server/outfits';
 import { GET, POST } from './+server';
 import { DELETE, PATCH } from './[id]/+server';
+import { POST as RECUTOUT } from './[id]/recutout/+server';
 
 let tmp: string;
 let db: DB;
@@ -101,6 +102,35 @@ describe('PATCH /api/outfits/[id] hybride-guard', () => {
     const patched = await (await PATCH({ params: { id: String(id) }, request: req } as never)).json();
     expect(patched.name).toBe('Look 2');
     expect(patched.size).toBe('74');
+  });
+});
+
+describe('POST /api/outfits/[id]/recutout', () => {
+  it('queues a sharp (birefnet) cutout for a photo-outfit (once the isnet job cleared)', async () => {
+    const { id } = await (await POST({ request: multipart({ name: 'Look' }, jpegFile()) } as never)).json();
+    clearOutfitCutoutJob(id); // simuleer: isnet-cutout klaar, geen lopende job meer
+    const res = await RECUTOUT({ params: { id: String(id) } } as never);
+    expect(res.status).toBe(202);
+    expect(getOutfit(id)!.cutout_job).toBe('queued:birefnet-general');
+  });
+
+  it('is a no-op while a cutout job is already in flight (no clobber)', async () => {
+    const { id } = await (await POST({ request: multipart({ name: 'Look' }, jpegFile()) } as never)).json();
+    // isnet staat nog in de wachtrij ('queued:') → recutout mag die niet overschrijven
+    expect(getOutfit(id)!.cutout_job).toBe('queued:');
+    const res = await RECUTOUT({ params: { id: String(id) } } as never);
+    expect(res.status).toBe(202);
+    expect(getOutfit(id)!.cutout_job).toBe('queued:'); // ongewijzigd
+  });
+
+  it('rejects recutout on an item-outfit (409)', async () => {
+    const req = new Request('http://x/api/outfits', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ name: 'Sleep', items: [] })
+    });
+    const { id } = await (await POST({ request: req } as never)).json();
+    expect(await callStatus(() => RECUTOUT({ params: { id: String(id) } } as never))).toBe(409);
   });
 });
 

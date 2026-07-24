@@ -11,6 +11,8 @@ export interface OutfitDTO {
   created_at: string;
   cutout_status: CutoutStatus; // genormaliseerd (NULL → 'none')
   is_photo: boolean;
+  is_sharp: boolean; // cutout via birefnet (scherp) gemaakt
+  cutout_busy: boolean; // een cutout-job staat in de wachtrij/loopt
   thumb_url: string | null;
   thumb_small_url: string | null; // kleine webp voor de lijst (foto-outfit)
   orig_download_url: string | null; // bronfoto (foto-outfit) voor de detail-fallback
@@ -38,6 +40,8 @@ export function serializeOutfit(outfit: Outfit): OutfitDTO {
     created_at: outfit.created_at,
     cutout_status: outfit.cutout_status ?? 'none',
     is_photo: outfit.photo_orig != null,
+    is_sharp: outfit.cutout_model === 'birefnet-general',
+    cutout_busy: outfit.cutout_job != null,
     thumb_url: photoUrl('outfit', outfit.thumb_path),
     thumb_small_url: outfit.photo_orig ? photoUrl('outfit', `${outfit.id}.webp`) : null,
     orig_download_url: outfit.photo_orig ? photoUrl('outfit_orig', outfit.photo_orig) : null

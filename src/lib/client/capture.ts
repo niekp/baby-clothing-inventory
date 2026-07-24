@@ -1,10 +1,10 @@
 // Client-side foto-helpers voor de scan-flow. Geen server-imports.
 import type { ItemDTO } from '$lib/server/serialize';
 
-// Origineel: groot genoeg om te hergebruiken (bv. Vinted), niet absurd. De
-// display-variant (klein webp) wordt server-side apart gemaakt.
-const MAX_DIM = 3000;
-const QUALITY = 0.92;
+// Origineel: full-res behouden (12MP-foto valt onder 4096) tegen hoge kwaliteit.
+// De display-variant (webp) wordt server-side apart gemaakt.
+const MAX_DIM = 4096;
+const QUALITY = 0.95;
 
 // Crop-kader, genormaliseerd (0-1) t.o.v. het getoonde video-element.
 export interface CropRect {

@@ -11,6 +11,7 @@
   let placed = $derived(outfitItemsToPlaced(data.outfit.items));
 
   let msg = $state<string | null>(null);
+  let sharpening = $state(false);
 
   async function del() {
     if (!confirm('Deze outfit verwijderen?')) return;
@@ -18,6 +19,15 @@
     const res = await fetch(`/api/outfits/${data.outfit.id}`, { method: 'DELETE' });
     if (res.ok) goto('/outfits');
     else msg = 'Verwijderen mislukt';
+  }
+
+  async function sharpen() {
+    sharpening = true;
+    msg = null;
+    const res = await fetch(`/api/outfits/${data.outfit.id}/recutout`, { method: 'POST' });
+    sharpening = false;
+    if (res.ok) msg = 'Scherpere cutout in de wachtrij…';
+    else msg = 'Verscherpen mislukt';
   }
 </script>
 
@@ -50,6 +60,11 @@
 {/if}
 
 <div class="actions">
+  {#if data.outfit.is_photo && !data.outfit.is_sharp && !data.outfit.cutout_busy}
+    <Button variant="ghost" onclick={sharpen} disabled={sharpening}>
+      <Icon name="loader" size={16} spin={sharpening} /> Scherpere cutout
+    </Button>
+  {/if}
   <Button variant="ghost" href={`/outfits/${data.outfit.id}/edit`}
     ><Icon name="pencil" size={16} /> Bewerken</Button
   >

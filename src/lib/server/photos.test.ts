@@ -37,17 +37,17 @@ async function jpegBuffer(w = 200, h = 200): Promise<Buffer> {
 
 describe('savePhoto', () => {
   it('writes original and a compressed display webp', async () => {
-    const buf = await jpegBuffer(2000, 2000); // groter dan DISPLAY_MAX
+    const buf = await jpegBuffer(3000, 3000); // groter dan DISPLAY_MAX
     const saved = await savePhoto(1, buf, 'jpg');
     expect(saved.origName).toBe('1.jpg');
     expect(saved.dispName).toBe('1.webp');
     expect(existsSync(join(tmp, 'orig', '1.jpg'))).toBe(true);
     expect(existsSync(join(tmp, 'disp', '1.webp'))).toBe(true);
 
-    // display is webp en geschaald naar max 1024
+    // display is webp en geschaald naar max 2048
     const meta = await sharp(join(tmp, 'disp', '1.webp')).metadata();
     expect(meta.format).toBe('webp');
-    expect(Math.max(meta.width ?? 0, meta.height ?? 0)).toBeLessThanOrEqual(1024);
+    expect(Math.max(meta.width ?? 0, meta.height ?? 0)).toBeLessThanOrEqual(2048);
   });
 
   it('keeps the original but returns null display on undecodable input', async () => {
