@@ -29,6 +29,7 @@ import { tagImage } from './ai';
 import { cutout } from './rembg';
 
 const SHARP_MODEL = 'birefnet-general';
+const REMBG_INPUT_MAX = 1024; // rembg-invoer begrenzen: birefnet op full-res is te traag (CPU) → timeouts
 
 const IDLE_MS = Number(process.env.WORKER_IDLE_MS ?? 3000);
 const TAG_RETRY_MS = Number(process.env.WORKER_TAG_RETRY_MS ?? 2000);
@@ -154,7 +155,13 @@ export async function generateOutfitCutout(
   model?: string
 ): Promise<string | null> {
   try {
-    const png = await cutout(srcBytes, model);
+    // rembg op een verkleinde bron (1024): full-res birefnet is te traag → timeout.
+    // .rotate() bakt EXIF-oriëntatie zodat de cutout niet zijwaarts uitkomt.
+    const input = await sharp(Buffer.from(srcBytes))
+      .rotate()
+      .resize(REMBG_INPUT_MAX, REMBG_INPUT_MAX, { fit: 'inside', withoutEnlargement: true })
+      .toBuffer();
+    const png = await cutout(new Uint8Array(input) as Uint8Array<ArrayBuffer>, model);
     if (!getOutfit(id)) return null; // outfit ondertussen verwijderd
     const norm = await normalizeOutfitCutout(png).catch(() => png); // niet-fataal
     await saveOutfitThumb(id, norm);

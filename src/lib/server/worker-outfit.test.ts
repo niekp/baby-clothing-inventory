@@ -45,10 +45,17 @@ async function cutoutPng(): Promise<Uint8Array<ArrayBuffer>> {
   return new Uint8Array(buf) as Uint8Array<ArrayBuffer>;
 }
 
+// echte (kleine) jpeg-bron zodat de worker-resize (sharp) 'm kan lezen
+async function srcJpeg(): Promise<Buffer> {
+  return sharp({ create: { width: 300, height: 500, channels: 3, background: '#246' } })
+    .jpeg()
+    .toBuffer();
+}
+
 // foto-outfit met een bronbestand op schijf
 async function photoOutfit(): Promise<number> {
   const o = createOutfit('look', []);
-  await saveOutfitOrig(o.id, Buffer.from('src-bytes'), 'jpg');
+  await saveOutfitOrig(o.id, await srcJpeg(), 'jpg');
   db.prepare('UPDATE outfit SET photo_orig = ? WHERE id = ?').run(`${o.id}.jpg`, o.id);
   enqueueOutfitCutout(o.id); // isnet
   return o.id;

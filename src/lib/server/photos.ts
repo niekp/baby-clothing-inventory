@@ -6,8 +6,8 @@ import { join } from 'node:path';
 export type Variant = 'orig' | 'disp' | 'cutout' | 'thumb' | 'outfit' | 'outfit_orig';
 const VARIANTS: Variant[] = ['orig', 'disp', 'cutout', 'thumb', 'outfit', 'outfit_orig'];
 
-const DISPLAY_MAX = 2048;
-const DISPLAY_QUALITY = 88;
+const DISPLAY_MAX = 1024;
+const DISPLAY_QUALITY = 80;
 const THUMB_MAX = 384; // kleine transparante thumbnail voor grids/lijsten
 const THUMB_QUALITY = 78;
 
