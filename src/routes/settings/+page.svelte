@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { onMount } from 'svelte';
   import { invalidateAll } from '$app/navigation';
   import Button from '$lib/components/Button.svelte';
   import Chip from '$lib/components/Chip.svelte';
@@ -9,17 +8,6 @@
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
-
-  // Camera: full-res still (ImageCapture) aan/uit — client-vlag, per apparaat.
-  const HIRES_KEY = 'bci.scan.hires';
-  let hires = $state(true);
-  onMount(() => {
-    hires = localStorage.getItem(HIRES_KEY) !== '0';
-  });
-  function toggleHires() {
-    hires = !hires;
-    localStorage.setItem(HIRES_KEY, hires ? '1' : '0');
-  }
 
   let newName = $state('');
   let msg = $state<string | null>(null);
@@ -138,18 +126,6 @@
   {/if}
 </section>
 
-<section>
-  <h2>Camera</h2>
-  <label class="toggle">
-    <input type="checkbox" checked={hires} onchange={toggleHires} />
-    Hoge-resolutie opname (experimenteel)
-  </label>
-  <p class="muted hint">
-    Gebruikt waar mogelijk een full-resolutie foto i.p.v. een videoframe. Zet uit als de
-    scan-camera zich vreemd gedraagt.
-  </p>
-</section>
-
 <style>
   h1 {
     margin: 0 0 var(--space-4);
@@ -208,14 +184,5 @@
     font-size: var(--fs-sm);
     color: var(--accent, var(--text));
     margin: 0 0 var(--space-2);
-  }
-  .toggle {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-  }
-  .hint {
-    font-size: var(--fs-sm);
-    margin: var(--space-2) 0 0;
   }
 </style>

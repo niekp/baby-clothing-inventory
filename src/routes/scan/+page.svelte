@@ -11,10 +11,6 @@
 
   const SIZE_KEY = 'bci.scan.size';
   const CROP_KEY = 'bci.scan.crop';
-  const HIRES_KEY = 'bci.scan.hires';
-
-  // full-res still (ImageCapture) staat standaard aan; uit te zetten in Instellingen
-  let hires = $state(true);
 
   // hoogteband (volle breedte) over het camerablok: ruime default, onthouden tussen sessies
   let crop = $state<CropRect>({ x: 0, y: 0.05, w: 1, h: 0.9 });
@@ -50,7 +46,6 @@
   }
 
   onMount(() => {
-    hires = localStorage.getItem(HIRES_KEY) !== '0'; // default aan
     const saved = localStorage.getItem(SIZE_KEY);
     if (saved) size = saved;
     try {
@@ -96,7 +91,7 @@
     if (shutterBusy) return; // dubbel-tik → geen dubbele opname
     shutterBusy = true;
     try {
-      const blob = await cam?.capture(crop);
+      const blob = await cam?.grabFrame(crop);
       if (!blob) {
         showToast(
           camState.status === 'dead' ? 'Camera onderbroken — verbind opnieuw' : 'Geen frame'
@@ -194,7 +189,7 @@
   {#if !uploadMode}
     <!-- venster op de camera-verhouding: toont het hele frame (volle FOV) -->
     <div class="viewport" style="aspect-ratio: {camState.aspect || 0.75}">
-      <CameraView bind:this={cam} {hires} onstate={(s) => (camState = s)} />
+      <CameraView bind:this={cam} onstate={(s) => (camState = s)} />
       {#if camState.status === 'live'}
         <CropFrame bind:rect={crop} onchange={saveCrop} />
       {/if}

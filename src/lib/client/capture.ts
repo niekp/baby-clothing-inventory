@@ -57,35 +57,6 @@ export function canvasFromVideo(
   return canvas;
 }
 
-// Tekent een ImageBitmap (ImageCapture-still) op een (geschaalde) canvas. Met crop:
-// genormaliseerde coördinaten (0-1) direct op de bitmap (zelfde FOV als de preview-band).
-export function canvasFromBitmap(
-  bitmap: ImageBitmap,
-  crop?: CropRect,
-  maxDim = MAX_DIM
-): HTMLCanvasElement {
-  const bw = bitmap.width;
-  const bh = bitmap.height;
-  let sx = 0;
-  let sy = 0;
-  let sw = bw;
-  let sh = bh;
-  if (crop) {
-    sx = Math.max(0, Math.min(crop.x * bw, bw));
-    sy = Math.max(0, Math.min(crop.y * bh, bh));
-    sw = Math.max(1, Math.min(crop.w * bw, bw - sx));
-    sh = Math.max(1, Math.min(crop.h * bh, bh - sy));
-  }
-  const scale = Math.min(1, maxDim / Math.max(sw, sh));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.round(sw * scale);
-  canvas.height = Math.round(sh * scale);
-  const ctx = canvas.getContext('2d');
-  if (!ctx) throw new Error('geen 2d-context');
-  ctx.drawImage(bitmap, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
-  return canvas;
-}
-
 // Detecteert een (vrijwel) zwart frame — symptoom van een dode iOS-stream.
 export function canvasIsBlack(canvas: HTMLCanvasElement, threshold = 8): boolean {
   const ctx = canvas.getContext('2d');

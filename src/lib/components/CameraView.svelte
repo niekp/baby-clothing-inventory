@@ -18,20 +18,12 @@
 
 <script lang="ts">
   import { onMount, onDestroy } from 'svelte';
-  import {
-    canvasFromBitmap,
-    canvasFromVideo,
-    canvasIsBlack,
-    canvasToJpegBlob,
-    type CropRect
-  } from '$lib/client/capture';
+  import { canvasFromVideo, canvasIsBlack, canvasToJpegBlob, type CropRect } from '$lib/client/capture';
 
-  let { onstate, hires = true }: { onstate?: (s: CamState) => void; hires?: boolean } = $props();
+  let { onstate }: { onstate?: (s: CamState) => void } = $props();
 
   let video: HTMLVideoElement;
   let stream: MediaStream | null = null;
-  // ImageCapture voor full-res stills (achter de hires-vlag); null = niet beschikbaar
-  let imageCapture: ImageCapture | null = null;
   let status = $state<CamStatus>('requesting');
   let torchOn = $state(false);
   let torchSupported = $state(false);
@@ -46,7 +38,6 @@
   function stopStream() {
     stream?.getTracks().forEach((t) => t.stop());
     stream = null;
-    imageCapture = null;
   }
 
   async function acquire() {
@@ -90,15 +81,6 @@
     torchSupported = Boolean(
       (track?.getCapabilities?.() as { torch?: boolean } | undefined)?.torch
     );
-    // full-res still via ImageCapture (waar ondersteund + vlag aan); anders videoframe
-    imageCapture = null;
-    if (hires && track && typeof (window as { ImageCapture?: unknown }).ImageCapture === 'function') {
-      try {
-        imageCapture = new ImageCapture(track);
-      } catch {
-        imageCapture = null;
-      }
-    }
     // dode stream detecteren (iOS na suspend)
     track?.addEventListener('ended', () => {
       status = 'dead';
@@ -145,36 +127,6 @@
     } catch {
       return null;
     }
-  }
-
-  // takePhoto kan op sommige toestellen hangen → hard begrenzen zodat de shutter niet vastloopt.
-  const PHOTO_TIMEOUT_MS = 4000;
-
-  // Full-res still via ImageCapture; null bij elke fout/timeout (caller valt terug op grabFrame).
-  async function grabPhoto(crop?: CropRect): Promise<Blob | null> {
-    if (!imageCapture) return null;
-    try {
-      const blob = await Promise.race([
-        imageCapture.takePhoto(),
-        new Promise<never>((_, reject) => setTimeout(() => reject(new Error('takePhoto timeout')), PHOTO_TIMEOUT_MS))
-      ]);
-      const bitmap = await createImageBitmap(blob);
-      try {
-        const canvas = canvasFromBitmap(bitmap, crop);
-        if (canvasIsBlack(canvas)) return null;
-        return await canvasToJpegBlob(canvas);
-      } finally {
-        bitmap.close();
-      }
-    } catch {
-      return null;
-    }
-  }
-
-  // Voorkeurspad: full-res still (hires); valt terug op het videoframe.
-  export async function capture(crop?: CropRect): Promise<Blob | null> {
-    if (status !== 'live') return null;
-    return (await grabPhoto(crop)) ?? (await grabFrame(crop));
   }
 
   export async function flip(): Promise<void> {
