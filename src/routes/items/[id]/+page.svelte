@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { goto, invalidateAll } from '$app/navigation';
+  import { afterNavigate, goto, invalidateAll } from '$app/navigation';
   import Button from '$lib/components/Button.svelte';
   import Icon from '$lib/components/Icon.svelte';
   import ItemFields, { type ItemFormValue, blankForm } from '$lib/components/ItemFields.svelte';
@@ -10,6 +10,17 @@
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
+
+  // Terug binnen de app? Dan via history.back() zodat een ingesteld kast-filter
+  // (+ scrollpositie) behouden blijft; anders naar de kast.
+  let cameFromApp = $state(false);
+  afterNavigate((nav) => {
+    if (nav.from) cameFromApp = true;
+  });
+  function goBack() {
+    if (cameFromApp) history.back();
+    else goto('/');
+  }
 
   let form = $state<ItemFormValue>(blankForm());
 
@@ -162,7 +173,7 @@
 
 <div class="detail">
   <header class="bar">
-    <a href="/" class="back" aria-label="Terug"><Icon name="arrow-left" size={22} /></a>
+    <button type="button" class="back" onclick={goBack} aria-label="Terug"><Icon name="arrow-left" size={22} /></button>
     <button class="fav" class:on={data.item.favorite} onclick={toggleFav} aria-label="Favoriet">
       <Icon name="heart" size={24} fill={!!data.item.favorite} />
     </button>
@@ -261,6 +272,10 @@
   .back {
     font-size: var(--fs-xl);
     padding: var(--space-1) var(--space-2);
+    background: none;
+    border: none;
+    color: inherit;
+    cursor: pointer;
   }
   .fav {
     background: none;
