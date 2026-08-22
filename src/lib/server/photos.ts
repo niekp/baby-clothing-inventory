@@ -199,20 +199,21 @@ export async function saveOutfitOrig(id: number, buffer: Buffer, ext: string): P
 }
 
 // Verwijdert een outfit-thumbnail (ontbrekend bestand negeren).
-export async function deleteOutfitThumb(thumbPath: string | null): Promise<void> {
-  if (!thumbPath) return;
-  await unlink(join(baseDir(), 'outfit', thumbPath)).catch(() => {});
+export async function deleteOutfitThumb(id: number): Promise<void> {
+  await unlink(join(baseDir(), 'outfit', `${id}.png`)).catch(() => {});
 }
 
 // Verwijdert alle bestanden van een foto-outfit (bron + cutout-PNG + webp-thumb).
-export async function deleteOutfitPhotos(names: {
-  photo_orig?: string | null;
-  thumb_path?: string | null;
-}): Promise<void> {
+// Cutout-namen komen uit de <id>.png/<id>.webp-conventie, niet uit thumb_path: die
+// is NULL tot de cutout-job klaar is, en zou de bestanden dan laten staan.
+export async function deleteOutfitPhotos(
+  id: number,
+  names: { photo_orig?: string | null }
+): Promise<void> {
   const targets: [Variant, string | null | undefined][] = [
     ['outfit_orig', names.photo_orig],
-    ['outfit', names.thumb_path],
-    ['outfit', names.thumb_path ? names.thumb_path.replace(/\.png$/, '.webp') : null]
+    ['outfit', `${id}.png`],
+    ['outfit', `${id}.webp`]
   ];
   await Promise.all(
     targets

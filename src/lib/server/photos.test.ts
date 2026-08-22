@@ -26,7 +26,8 @@ const {
   saveOutfitOrig,
   saveOutfitThumb,
   saveOutfitCutoutThumb,
-  deleteOutfitPhotos
+  deleteOutfitPhotos,
+  deleteOutfitThumb
 } = await import('./photos');
 
 async function jpegBuffer(w = 200, h = 200): Promise<Buffer> {
@@ -219,9 +220,25 @@ describe('outfit photo files', () => {
     await saveOutfitOrig(8, await jpegBuffer(), 'jpg');
     await saveOutfitThumb(8, await pngBlock());
     await saveOutfitCutoutThumb(8, await pngBlock());
-    await deleteOutfitPhotos({ photo_orig: '8.jpg', thumb_path: '8.png' });
+    await deleteOutfitPhotos(8, { photo_orig: '8.jpg' });
     expect(existsSync(join(tmp, 'outfit_orig', '8.jpg'))).toBe(false);
     expect(existsSync(join(tmp, 'outfit', '8.png'))).toBe(false);
     expect(existsSync(join(tmp, 'outfit', '8.webp'))).toBe(false);
+  });
+
+  // crash tussen het schrijven van de cutout en het zetten van thumb_path
+  it('deleteOutfitPhotos ruimt de cutout ook op als thumb_path nooit gezet is', async () => {
+    await saveOutfitOrig(9, await jpegBuffer(), 'jpg');
+    await saveOutfitThumb(9, await pngBlock());
+    await saveOutfitCutoutThumb(9, await pngBlock());
+    await deleteOutfitPhotos(9, { photo_orig: null });
+    expect(existsSync(join(tmp, 'outfit', '9.png'))).toBe(false);
+    expect(existsSync(join(tmp, 'outfit', '9.webp'))).toBe(false);
+  });
+
+  it('deleteOutfitThumb verwijdert de item-outfit-thumb', async () => {
+    await saveOutfitThumb(10, await pngBlock());
+    await deleteOutfitThumb(10);
+    expect(existsSync(join(tmp, 'outfit', '10.png'))).toBe(false);
   });
 });

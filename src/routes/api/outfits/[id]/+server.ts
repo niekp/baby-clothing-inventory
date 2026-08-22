@@ -73,9 +73,9 @@ export const DELETE: RequestHandler = async ({ params }) => {
   if (!outfit) error(404, 'Niet gevonden');
   // foto-outfit: bron + cutout-PNG + webp opruimen; item-outfit: alleen de thumb
   if (outfit.photo_orig) {
-    await deleteOutfitPhotos({ photo_orig: outfit.photo_orig, thumb_path: outfit.thumb_path });
+    await deleteOutfitPhotos(id, { photo_orig: outfit.photo_orig });
   } else {
-    await deleteOutfitThumb(outfit.thumb_path);
+    await deleteOutfitThumb(id);
   }
   deleteOutfit(id);
   return new Response(null, { status: 204 });

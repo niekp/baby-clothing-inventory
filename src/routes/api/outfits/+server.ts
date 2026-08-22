@@ -68,7 +68,7 @@ async function createPhotoOutfit(request: Request): Promise<Response> {
     enqueueOutfitCutout(outfit.id); // leeg model = isnet (snel); birefnet volgt automatisch
   } catch (e) {
     // geen wees-rij/-bestand achterlaten
-    await deleteOutfitPhotos({ photo_orig: `${outfit.id}.${ext}`, thumb_path: null });
+    await deleteOutfitPhotos(outfit.id, { photo_orig: `${outfit.id}.${ext}` });
     deleteOutfit(outfit.id);
     throw e;
   }
