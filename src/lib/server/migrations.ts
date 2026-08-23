@@ -100,6 +100,22 @@ export const MIGRATIONS: Migration[] = [
         'CREATE INDEX IF NOT EXISTS idx_outfit_cutout_job ON outfit(cutout_job) WHERE cutout_job IS NOT NULL'
       ).run();
     }
+  },
+  {
+    // inspiratie: derde soort outfit (printscreens van looks, niet onze kleding). kind
+    // discrimineert; note/favorite gelden alleen voor 'inspiration'. Bestaande rijen worden
+    // 'own' via de DEFAULT.
+    name: 'add-outfit-kind',
+    up: (db) => {
+      addColumnIfMissing(
+        db,
+        'outfit',
+        'kind',
+        "TEXT NOT NULL DEFAULT 'own' CHECK (kind IN ('own','inspiration'))"
+      );
+      addColumnIfMissing(db, 'outfit', 'note', 'TEXT');
+      addColumnIfMissing(db, 'outfit', 'favorite', 'INTEGER NOT NULL DEFAULT 0');
+    }
   }
 ];
 

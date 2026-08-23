@@ -8,6 +8,22 @@ const SCHEMA =
   'CREATE TABLE outfit (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, thumb_path TEXT, created_at TEXT)';
 
 describe('runMigrations', () => {
+  it("geeft bestaande outfit-rijen de soort 'own' en voegt note/favorite toe", () => {
+    const db = new Database(':memory:');
+    db.exec(SCHEMA);
+    db.prepare("INSERT INTO outfit (name, created_at) VALUES ('Zomerlook', '2026-01-01')").run();
+    db.pragma('user_version = 0');
+
+    runMigrations(db);
+
+    const row = db.prepare('SELECT kind, note, favorite FROM outfit').get() as {
+      kind: string;
+      note: string | null;
+      favorite: number;
+    };
+    expect(row).toEqual({ kind: 'own', note: null, favorite: 0 });
+  });
+
   it('converts legacy bare-string season to a JSON array, leaves JSON/NULL alone', () => {
     const db = new Database(':memory:');
     db.exec(SCHEMA);

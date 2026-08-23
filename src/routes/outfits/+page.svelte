@@ -3,6 +3,8 @@
   import Button from '$lib/components/Button.svelte';
   import Chip from '$lib/components/Chip.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import PhotoCard from '$lib/components/PhotoCard.svelte';
+  import { cutoutState, photoCardSources } from '$lib/client/images';
   import type { PageData } from './$types';
 
   let { data }: { data: PageData } = $props();
@@ -43,32 +45,14 @@
 {:else}
   <div class="grid">
     {#each data.outfits as o (o.id)}
-      {@const src = o.is_photo ? (o.thumb_small_url ?? o.thumb_url) : o.thumb_url}
-      <a class="card" href={`/outfits/${o.id}`}>
-        <div class="thumb">
-          {#if o.is_photo && o.cutout_status !== 'done'}
-            <span class="ph" aria-hidden="true">
-              {#if o.cutout_status === 'failed'}<Icon name="alert" size={40} />{:else}<Icon name="loader" size={40} spin />{/if}
-            </span>
-          {:else if src}
-            <img
-              {src}
-              alt={o.name}
-              loading="lazy"
-              onerror={(e) => {
-                // webp-thumb ontbreekt → val terug op de PNG (eenmalig, geen loop)
-                const img = e.currentTarget as HTMLImageElement;
-                img.onerror = null;
-                if (o.thumb_url) img.src = o.thumb_url;
-              }}
-            />
-          {:else}
-            <span class="ph" aria-hidden="true"><Icon name="shapes" size={48} /></span>
-          {/if}
-          {#if o.size}<span class="size">{o.size}</span>{/if}
-        </div>
-        <span class="name">{o.name}</span>
-      </a>
+      <PhotoCard
+        href={`/outfits/${o.id}`}
+        label={o.name}
+        sources={photoCardSources(o)}
+        cutout={cutoutState(o)}
+        badge={o.size}
+        altFallback="outfit"
+      />
     {/each}
   </div>
 {/if}
@@ -103,46 +87,6 @@
     .grid {
       grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     }
-  }
-  .card {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-1);
-  }
-  .thumb {
-    position: relative;
-    aspect-ratio: 1000 / 1333;
-    background: var(--surface-2);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-  .thumb .size {
-    position: absolute;
-    left: var(--space-2);
-    top: var(--space-2);
-    background: rgba(0, 0, 0, 0.65);
-    color: #fff;
-    font-weight: 700;
-    font-size: var(--fs-sm);
-    padding: 2px 8px;
-    border-radius: 8px;
-  }
-  .thumb img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-  }
-  .ph {
-    font-size: 48px;
-    opacity: 0.4;
-  }
-  .name {
-    font-weight: 600;
-    padding-left: 2px;
   }
   .empty {
     text-align: center;

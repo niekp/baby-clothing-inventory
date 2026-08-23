@@ -1,11 +1,14 @@
 import { photoUrl } from './photos';
-import type { AiSuggestions, CutoutStatus, Item, Outfit } from '$lib/types';
+import type { AiSuggestions, CutoutStatus, Item, Outfit, OutfitKind } from '$lib/types';
 
 // Client-DTO van een outfit: interne wachtrij-velden (photo_orig/cutout_job/cutout_model)
 // worden niet meegestuurd; afgeleide URL's + is_photo/cutout_status wél.
 export interface OutfitDTO {
   id: number;
+  kind: OutfitKind;
   name: string;
+  note: string | null;
+  favorite: number; // 0/1
   size: string | null;
   thumb_path: string | null;
   created_at: string;
@@ -34,7 +37,10 @@ export type OutfitWithItemsDTO = OutfitDTO & { items: OutfitItemDTO[] };
 export function serializeOutfit(outfit: Outfit): OutfitDTO {
   return {
     id: outfit.id,
+    kind: outfit.kind,
     name: outfit.name,
+    note: outfit.note,
+    favorite: outfit.favorite,
     size: outfit.size,
     thumb_path: outfit.thumb_path,
     created_at: outfit.created_at,

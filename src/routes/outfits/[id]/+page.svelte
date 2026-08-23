@@ -3,6 +3,8 @@
   import OutfitCanvas from '$lib/components/OutfitCanvas.svelte';
   import Button from '$lib/components/Button.svelte';
   import Icon from '$lib/components/Icon.svelte';
+  import PhotoCutoutView from '$lib/components/PhotoCutoutView.svelte';
+  import { cutoutState } from '$lib/client/images';
   import { outfitItemsToPlaced } from '$lib/client/outfit-placed';
   import type { PageData } from './$types';
 
@@ -40,19 +42,12 @@
 {#if msg}<p class="err" role="alert">{msg}</p>{/if}
 
 {#if data.outfit.is_photo}
-  {#if data.outfit.cutout_status === 'done' && data.outfit.thumb_url}
-    <div class="photo"><img src={data.outfit.thumb_url} alt={data.outfit.name} /></div>
-  {:else if data.outfit.cutout_status === 'failed'}
-    <div class="photo state">
-      {#if data.outfit.orig_download_url}<img src={data.outfit.orig_download_url} alt={data.outfit.name} />{/if}
-      <p class="badge fail"><Icon name="alert" size={14} /> Cutout mislukt — originele foto getoond</p>
-    </div>
-  {:else}
-    <div class="photo state">
-      {#if data.outfit.orig_download_url}<img src={data.outfit.orig_download_url} alt={data.outfit.name} />{/if}
-      <p class="badge work"><Icon name="loader" size={14} spin /> Cutout wordt gemaakt…</p>
-    </div>
-  {/if}
+  <PhotoCutoutView
+    cutout={cutoutState(data.outfit)}
+    label={data.outfit.name}
+    cutoutUrl={data.outfit.thumb_url}
+    originalUrl={data.outfit.orig_download_url}
+  />
 {:else if placed.length > 0}
   <OutfitCanvas {placed} readonly />
 {:else}
@@ -65,9 +60,11 @@
       <Icon name="loader" size={16} spin={sharpening} /> Scherpere cutout
     </Button>
   {/if}
-  <Button variant="ghost" href={`/outfits/${data.outfit.id}/edit`}
-    ><Icon name="pencil" size={16} /> Bewerken</Button
-  >
+  {#if data.outfit.kind === 'own'}
+    <Button variant="ghost" href={`/outfits/${data.outfit.id}/edit`}
+      ><Icon name="pencil" size={16} /> Bewerken</Button
+    >
+  {/if}
   <Button variant="danger" onclick={del}><Icon name="trash" size={16} /> Verwijderen</Button>
 </div>
 
@@ -103,36 +100,5 @@
     gap: var(--space-3);
     justify-content: center;
     margin-top: var(--space-4);
-  }
-  .photo {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: var(--space-2);
-  }
-  .photo img {
-    max-width: 100%;
-    max-height: 70vh;
-    object-fit: contain;
-    border-radius: var(--radius);
-  }
-  .photo.state img {
-    opacity: 0.6;
-  }
-  .badge {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    font-size: var(--fs-sm);
-    border-radius: 999px;
-    padding: var(--space-2) var(--space-3);
-  }
-  .badge.work {
-    background: var(--surface-2);
-    color: var(--text-muted);
-  }
-  .badge.fail {
-    background: color-mix(in srgb, var(--danger) 15%, transparent);
-    color: var(--danger);
   }
 </style>

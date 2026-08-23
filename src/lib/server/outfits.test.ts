@@ -15,16 +15,20 @@ import {
   type DB
 } from './db';
 import {
+  createInspiration,
   createOutfit,
   deleteOutfit,
   getOutfit,
   getOutfitWithItems,
+  listInspiration,
   listOutfits,
   listOutfitSizes,
   setOutfitPhotoOrig,
-  updateOutfit
+  updateOutfit,
+  WrongOutfitKindError
 } from './outfits';
 import { parseOutfitSize } from './outfit-validate';
+import { serializeOutfit } from './serialize';
 
 let db: DB;
 
@@ -228,5 +232,174 @@ describe('bulk sharpen covers foto-outfits', () => {
     expect(getOutfit(notSharp)!.cutout_job).toBe('queued:birefnet-general');
     expect(getOutfit(sharp)!.cutout_job).toBeNull(); // al scherp → niet aangeraakt
     expect(countQueuedCutouts()).toBe(1);
+  });
+});
+
+// Inspiratie-rij zoals createInspiration die straks aanmaakt (chunk 2 levert dat pad).
+function seedInspiration(note: string | null = null): number {
+  const info = db
+    .prepare(
+      `INSERT INTO outfit (kind, name, note, size, photo_orig, created_at)
+       VALUES ('inspiration', '', ?, NULL, '9.jpg', ?)`
+    )
+    .run(note, new Date().toISOString());
+  return Number(info.lastInsertRowid);
+}
+
+describe('kind-scheiding tussen outfits en inspiratie', () => {
+  it('listOutfits laat inspiratie weg', () => {
+    const own = createOutfit('Zomerlook', []);
+    seedInspiration('mooie combi');
+    expect(listOutfits().map((o) => o.id)).toEqual([own.id]);
+  });
+
+  it('listOutfits met maat-filter laat inspiratie weg', () => {
+    const own = createOutfit('Maatje 68', [], '68');
+    db.prepare("UPDATE outfit SET size = '68' WHERE id = ?").run(seedInspiration());
+    expect(listOutfits(['68']).map((o) => o.id)).toEqual([own.id]);
+  });
+
+  it('listOutfitSizes negeert maten van inspiratie', () => {
+    createOutfit('Eigen', [], '68');
+    db.prepare("UPDATE outfit SET size = '92' WHERE id = ?").run(seedInspiration());
+    expect(listOutfitSizes()).toEqual(['68']);
+  });
+
+  it('listInspiration geeft alleen inspiratie, nieuwste eerst', () => {
+    createOutfit('Eigen', []);
+    const first = seedInspiration('een');
+    const second = seedInspiration('twee');
+    expect(listInspiration().map((r) => r.id)).toEqual([second, first]);
+  });
+
+  it('sorteert op id bij een gelijke created_at (bulk-upload)', () => {
+    const stamp = '2026-08-22T10:00:00.000Z';
+    const ids = [1, 2, 3].map(
+      () =>
+        Number(
+          db
+            .prepare(
+              `INSERT INTO outfit (kind, name, size, photo_orig, created_at)
+               VALUES ('inspiration', '', NULL, '9.jpg', ?)`
+            )
+            .run(stamp).lastInsertRowid
+        )
+    );
+    expect(listInspiration().map((r) => r.id)).toEqual([...ids].reverse());
+  });
+
+  it('weigert een onbekende soort', () => {
+    expect(() =>
+      db.prepare("INSERT INTO outfit (kind, name, created_at) VALUES ('rommel', '', '2026-01-01')").run()
+    ).toThrow(/CHECK constraint failed/);
+  });
+
+  it('listInspiration is leeg als er alleen eigen outfits zijn', () => {
+    createOutfit('Eigen', []);
+    expect(listInspiration()).toEqual([]);
+  });
+
+  it('nieuwe outfits krijgen soort own', () => {
+    expect(getOutfit(createOutfit('Eigen', []).id)?.kind).toBe('own');
+  });
+
+  it('een inspiratie-rij houdt zich aan de invariant: bronfoto, lege naam, geen items', () => {
+    const id = seedInspiration('combi met de gele broek');
+    const row = getOutfit(id)!;
+    expect(row.kind).toBe('inspiration');
+    expect(row.name).toBe('');
+    expect(row.photo_orig).not.toBeNull();
+    expect(row.note).toBe('combi met de gele broek');
+    expect(row.favorite).toBe(0);
+    expect(getOutfitWithItems(id)?.items).toEqual([]);
+  });
+});
+
+describe('createInspiration', () => {
+  it('maakt een rij met soort inspiration, lege naam en geen items', () => {
+    const row = createInspiration('combi met de gele broek');
+    expect(row.kind).toBe('inspiration');
+    expect(row.name).toBe('');
+    expect(row.note).toBe('combi met de gele broek');
+    expect(row.favorite).toBe(0);
+    expect(row.size).toBeNull();
+    expect(row.photo_orig).toBeNull(); // volgt zodra het bestand er staat
+    expect(getOutfitWithItems(row.id)?.items).toEqual([]);
+  });
+
+  it('mag zonder notitie', () => {
+    expect(createInspiration().note).toBeNull();
+  });
+
+  it('komt in listInspiration en niet in listOutfits', () => {
+    const row = createInspiration();
+    expect(listInspiration().map((r) => r.id)).toEqual([row.id]);
+    expect(listOutfits()).toEqual([]);
+  });
+});
+
+describe('updateOutfit — soort-guards', () => {
+  it('zet notitie en favoriet op inspiratie', () => {
+    const row = createInspiration();
+    expect(updateOutfit(row.id, { note: 'mooi' })?.note).toBe('mooi');
+    expect(updateOutfit(row.id, { favorite: 1 })?.favorite).toBe(1);
+    expect(updateOutfit(row.id, { favorite: 0 })?.favorite).toBe(0);
+  });
+
+  it('weigert notitie of favoriet op een eigen outfit', () => {
+    const own = createOutfit('Zomerlook', []);
+    expect(() => updateOutfit(own.id, { note: 'nee' })).toThrow(WrongOutfitKindError);
+    expect(() => updateOutfit(own.id, { favorite: 1 })).toThrow(WrongOutfitKindError);
+    expect(getOutfit(own.id)?.note).toBeNull();
+  });
+
+  it('weigert naam, maat of layout op inspiratie', () => {
+    const row = createInspiration();
+    expect(() => updateOutfit(row.id, { name: 'nee' })).toThrow(WrongOutfitKindError);
+    expect(() => updateOutfit(row.id, { size: '68' })).toThrow(WrongOutfitKindError);
+    expect(() => updateOutfit(row.id, { items: [] })).toThrow(WrongOutfitKindError);
+    const unchanged = getOutfit(row.id)!;
+    expect(unchanged.name).toBe('');
+    expect(unchanged.size).toBeNull();
+  });
+
+  it('weigert een gemengde patch volledig, ook het toegestane veld', () => {
+    const own = createOutfit('Zomerlook', [], '68');
+    expect(() => updateOutfit(own.id, { name: 'Winterlook', note: 'nee' })).toThrow(
+      WrongOutfitKindError
+    );
+    expect(getOutfit(own.id)?.name).toBe('Zomerlook');
+  });
+
+  it('laat naam en maat op een eigen outfit ongemoeid toe', () => {
+    const own = createOutfit('Zomerlook', [], '68');
+    const patched = updateOutfit(own.id, { name: 'Winterlook', size: '74' });
+    expect(patched?.name).toBe('Winterlook');
+    expect(patched?.size).toBe('74');
+  });
+
+  it('geeft undefined voor een onbekend id, zonder soort-check', () => {
+    expect(updateOutfit(404, { note: 'x' })).toBeUndefined();
+  });
+});
+
+describe('serializeOutfit met soort', () => {
+  it('neemt soort, notitie en favoriet mee en lekt geen wachtrij-velden', () => {
+    const row = createInspiration('mooie look');
+    updateOutfit(row.id, { favorite: 1 });
+    const dto = serializeOutfit(getOutfit(row.id)!);
+    expect(dto.kind).toBe('inspiration');
+    expect(dto.note).toBe('mooie look');
+    expect(dto.favorite).toBe(1);
+    for (const key of ['photo_orig', 'cutout_job', 'cutout_model']) {
+      expect(dto).not.toHaveProperty(key);
+    }
+  });
+
+  it('geeft een eigen outfit soort own met lege notitie', () => {
+    const dto = serializeOutfit(createOutfit('Zomerlook', [], '68'));
+    expect(dto.kind).toBe('own');
+    expect(dto.note).toBeNull();
+    expect(dto.favorite).toBe(0);
   });
 });

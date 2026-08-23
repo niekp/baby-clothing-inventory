@@ -6,8 +6,8 @@
     { href: '/', label: 'Kast', icon: 'shirt' },
     { href: '/outfits', label: 'Outfits', icon: 'shapes' },
     { href: '/scan', label: 'Scan', icon: 'camera', primary: true },
-    { href: '/stats', label: 'Cijfers', icon: 'chart' },
-    { href: '/settings', label: 'Instellingen', icon: 'settings' }
+    { href: '/inspiratie', label: 'Inspiratie', icon: 'sparkles' },
+    { href: '/settings', label: 'Meer', icon: 'settings' }
   ];
 
   function isActive(href: string): boolean {

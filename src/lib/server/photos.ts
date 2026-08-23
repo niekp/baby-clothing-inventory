@@ -35,14 +35,26 @@ function ensureDirs(): void {
   ensured.add(b);
 }
 
+// Mediatype zonder parameters: 'image/jpeg;charset=utf-8' → 'image/jpeg'.
+function baseMime(mime: string): string {
+  return mime.split(';')[0].trim().toLowerCase();
+}
+
+// Mimes die sharp kan verwerken. hasOwn, niet `in`: anders zijn '__proto__' en 'constructor' geldig.
+export function isSupportedImageMime(mime: string): boolean {
+  return Object.hasOwn(MIME_TO_EXT, baseMime(mime));
+}
+
 export function extForMime(mime: string, fallbackName = ''): string {
-  if (MIME_TO_EXT[mime]) return MIME_TO_EXT[mime];
+  const base = baseMime(mime);
+  if (Object.hasOwn(MIME_TO_EXT, base)) return MIME_TO_EXT[base];
   const m = fallbackName.toLowerCase().match(/\.([a-z0-9]+)$/);
   return m ? m[1] : 'bin';
 }
 
 function mimeForExt(ext: string): string {
-  return EXT_TO_MIME[ext.toLowerCase()] ?? 'application/octet-stream';
+  const key = ext.toLowerCase();
+  return Object.hasOwn(EXT_TO_MIME, key) ? EXT_TO_MIME[key] : 'application/octet-stream';
 }
 
 export interface SavedPhoto {

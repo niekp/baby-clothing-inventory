@@ -50,7 +50,10 @@
   });
 </script>
 
-<h1>Cijfers</h1>
+<header class="bar">
+  <a href="/settings" class="back" aria-label="Terug"><Icon name="arrow-left" size={22} /></a>
+  <h1>Cijfers</h1>
+</header>
 
 {#if data.total === 0}
   <div class="empty">
@@ -90,6 +93,14 @@
 {/if}
 
 <style>
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+  }
+  .back {
+    font-size: var(--fs-xl);
+  }
   h1 {
     margin: 0 0 var(--space-3);
     font-size: var(--fs-xl);

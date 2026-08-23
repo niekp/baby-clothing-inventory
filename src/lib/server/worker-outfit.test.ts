@@ -8,7 +8,7 @@ vi.mock('./ai', () => ({ tagImage: vi.fn() }));
 vi.mock('./rembg', () => ({ cutout: vi.fn() }));
 import { cutout } from './rembg';
 import { createDb, enqueueOutfitCutout, setDbForTesting, type DB } from './db';
-import { createOutfit, deleteOutfit, getOutfit } from './outfits';
+import { createInspiration, createOutfit, deleteOutfit, getOutfit } from './outfits';
 import { saveOutfitOrig } from './photos';
 import { drainOutfitCutout } from './worker';
 
@@ -110,5 +110,65 @@ describe('drainOutfitCutout — twee-traps', () => {
 
   it('returns false when the outfit cutout queue is empty', async () => {
     expect(await drainOutfitCutout()).toBe(false);
+  });
+});
+
+// inspiratie-rij met bronbestand op schijf en een isnet-job in de wachtrij
+async function photoInspiration(): Promise<number> {
+  const row = createInspiration('mooie look');
+  await saveOutfitOrig(row.id, await srcJpeg(), 'jpg');
+  db.prepare('UPDATE outfit SET photo_orig = ? WHERE id = ?').run(`${row.id}.jpg`, row.id);
+  enqueueOutfitCutout(row.id);
+  return row.id;
+}
+
+describe('drainOutfitCutout — inspiratie slaat de tweede trap over', () => {
+  it('isnet-cutout → done, maar géén birefnet-vervolgjob', async () => {
+    const id = await photoInspiration();
+    vi.mocked(cutout).mockResolvedValue(await cutoutPng());
+
+    expect(await drainOutfitCutout()).toBe(true);
+    const row = getOutfit(id)!;
+    expect(row.cutout_status).toBe('done');
+    expect(row.cutout_model).toBe('isnet-general-use');
+    expect(row.thumb_path).toBe(`${id}.png`);
+    expect(row.cutout_job).toBeNull(); // geen twee-traps
+    expect(await drainOutfitCutout()).toBe(false); // wachtrij is leeg
+    expect(existsSync(join(tmp, 'outfit', `${id}.png`))).toBe(true);
+    expect(existsSync(join(tmp, 'outfit', `${id}.webp`))).toBe(true);
+  });
+
+  it('een expliciete birefnet-job wordt wél verwerkt', async () => {
+    const id = await photoInspiration();
+    vi.mocked(cutout).mockResolvedValue(await cutoutPng());
+    await drainOutfitCutout();
+
+    enqueueOutfitCutout(id, 'birefnet-general');
+    expect(await drainOutfitCutout()).toBe(true);
+    expect(getOutfit(id)?.cutout_model).toBe('birefnet-general');
+    expect(getOutfit(id)?.cutout_job).toBeNull();
+  });
+
+  it('mislukte cutout → failed, geen vervolgjob, bron blijft staan', async () => {
+    const id = await photoInspiration();
+    vi.mocked(cutout).mockRejectedValue(new Error('no rembg'));
+
+    expect(await drainOutfitCutout()).toBe(true);
+    const row = getOutfit(id)!;
+    expect(row.cutout_status).toBe('failed');
+    expect(row.cutout_job).toBeNull();
+    expect(existsSync(join(tmp, 'outfit_orig', `${id}.jpg`))).toBe(true);
+  });
+
+  it('delete-race: inspiratie weg tijdens cutout → geen wees-cutout', async () => {
+    const id = await photoInspiration();
+    vi.mocked(cutout).mockImplementationOnce(async () => {
+      deleteOutfit(id);
+      return cutoutPng();
+    });
+
+    expect(await drainOutfitCutout()).toBe(true);
+    expect(getOutfit(id)).toBeUndefined();
+    expect(existsSync(join(tmp, 'outfit', `${id}.png`))).toBe(false);
   });
 });

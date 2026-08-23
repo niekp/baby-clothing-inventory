@@ -66,7 +66,12 @@
   }
 </script>
 
-<h1>Instellingen</h1>
+<h1>Meer</h1>
+
+<section>
+  <h2>Cijfers</h2>
+  <Button variant="ghost" href="/stats"><Icon name="chart" size={18} /> Kast in cijfers</Button>
+</section>
 
 <section>
   <h2>Kinderen</h2>

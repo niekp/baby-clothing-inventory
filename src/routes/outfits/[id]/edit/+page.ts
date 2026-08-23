@@ -1,4 +1,4 @@
-import { error } from '@sveltejs/kit';
+import { error, redirect } from '@sveltejs/kit';
 import type { PageLoad } from './$types';
 import type { ItemDTO, OutfitWithItemsDTO } from '$lib/server/serialize';
 
@@ -10,6 +10,7 @@ export const load: PageLoad = async ({ fetch, params }) => {
   if (outfitRes.status === 404) error(404, 'Outfit niet gevonden');
   if (!outfitRes.ok) error(500, 'Outfit kon niet geladen worden');
   const outfit = (await outfitRes.json()) as OutfitWithItemsDTO;
+  if (outfit.kind === 'inspiration') redirect(307, `/inspiratie/${outfit.id}`);
   const items = itemsRes.ok ? ((await itemsRes.json()) as ItemDTO[]) : [];
   return { outfit, items };
 };

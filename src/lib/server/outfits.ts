@@ -1,7 +1,7 @@
 import { getDb } from './db';
 import { broadcast } from './events';
 import { sizesMatchingFilter, SIZE_CHIPS } from '$lib/config';
-import type { Item, Outfit, OutfitItem } from '$lib/types';
+import type { Item, Outfit, OutfitItem, OutfitKind } from '$lib/types';
 
 export interface OutfitItemInput {
   item_id: number;
@@ -23,17 +23,30 @@ export interface OutfitWithItems {
 
 // Optioneel maat-filter: outfits waarvan de maat overlapt met een gevraagde maat
 // (86 matcht ook 86/92, via sizesMatchingFilter — consistent met de kast). Outfits
-// zonder maat vallen buiten een actief filter.
+// zonder maat vallen buiten een actief filter. Inspiratie hoort hier niet bij.
 export function listOutfits(sizes?: string[]): Outfit[] {
   if (sizes && sizes.length) {
     const wanted = sizesMatchingFilter(sizes);
     if (!wanted.length) return [];
     const placeholders = wanted.map(() => '?').join(',');
     return getDb()
-      .prepare(`SELECT * FROM outfit WHERE size IN (${placeholders}) ORDER BY created_at DESC`)
+      .prepare(
+        `SELECT * FROM outfit WHERE kind = 'own' AND size IN (${placeholders})
+         ORDER BY created_at DESC`
+      )
       .all(...wanted) as Outfit[];
   }
-  return getDb().prepare('SELECT * FROM outfit ORDER BY created_at DESC').all() as Outfit[];
+  return getDb()
+    .prepare("SELECT * FROM outfit WHERE kind = 'own' ORDER BY created_at DESC")
+    .all() as Outfit[];
+}
+
+// Inspiratie-printscreens, nieuwste eerst. Secundair op id: een bulk-upload levert
+// meerdere rijen met dezelfde created_at op.
+export function listInspiration(): Outfit[] {
+  return getDb()
+    .prepare("SELECT * FROM outfit WHERE kind = 'inspiration' ORDER BY created_at DESC, id DESC")
+    .all() as Outfit[];
 }
 
 export function getOutfit(id: number): Outfit | undefined {
@@ -43,7 +56,7 @@ export function getOutfit(id: number): Outfit | undefined {
 // Distinct maten die op outfits voorkomen (voor de filterbalk), in SIZE_CHIPS-volgorde.
 export function listOutfitSizes(): string[] {
   const rows = getDb()
-    .prepare('SELECT DISTINCT size FROM outfit WHERE size IS NOT NULL')
+    .prepare("SELECT DISTINCT size FROM outfit WHERE kind = 'own' AND size IS NOT NULL")
     .all() as { size: string }[];
   const present = new Set(rows.map((r) => r.size));
   return SIZE_CHIPS.filter((s) => present.has(s));
@@ -59,6 +72,19 @@ function replaceItems(outfitId: number, items: OutfitItemInput[]): void {
   for (const it of items) {
     stmt.run(outfitId, it.item_id, it.x, it.y, it.scale, it.rotation, it.z_index);
   }
+}
+
+// Inspiratie-printscreen: geen naam, geen maat, geen items. photo_orig volgt zodra het
+// bestand met dit id is weggeschreven.
+export function createInspiration(note: string | null = null): Outfit {
+  const info = getDb()
+    .prepare(
+      `INSERT INTO outfit (kind, name, note, created_at)
+       VALUES ('inspiration', '', @note, @created_at)`
+    )
+    .run({ note, created_at: new Date().toISOString() });
+  broadcast();
+  return getOutfit(Number(info.lastInsertRowid))!;
 }
 
 export function createOutfit(
@@ -80,18 +106,48 @@ export function createOutfit(
   return outfit;
 }
 
-export function updateOutfit(
-  id: number,
-  patch: { name?: string; items?: OutfitItemInput[]; size?: string | null }
-): Outfit | undefined {
+// Velden die alleen bij één soort horen. Een patch die de verkeerde kant op wil, is een
+// bug in de caller — vandaar een exception in plaats van stil negeren.
+const OWN_ONLY = ['name', 'size', 'items'] as const;
+const INSPIRATION_ONLY = ['note', 'favorite'] as const;
+
+export class WrongOutfitKindError extends Error {
+  name = 'WrongOutfitKindError';
+}
+
+export interface OutfitPatch {
+  name?: string;
+  items?: OutfitItemInput[];
+  size?: string | null;
+  note?: string | null;
+  favorite?: number;
+}
+
+function assertPatchMatchesKind(kind: OutfitKind, patch: OutfitPatch): void {
+  const forbidden = kind === 'own' ? INSPIRATION_ONLY : OWN_ONLY;
+  const offending = forbidden.filter((field) => patch[field] !== undefined);
+  if (offending.length) {
+    throw new WrongOutfitKindError(`${offending.join(', ')} hoort niet bij soort ${kind}`);
+  }
+}
+
+export function updateOutfit(id: number, patch: OutfitPatch): Outfit | undefined {
   const db = getDb();
-  if (!getOutfit(id)) return undefined;
+  const existing = getOutfit(id);
+  if (!existing) return undefined;
+  assertPatchMatchesKind(existing.kind, patch);
   const tx = db.transaction(() => {
     if (patch.name !== undefined) {
       db.prepare('UPDATE outfit SET name = ? WHERE id = ?').run(patch.name, id);
     }
     if (patch.size !== undefined) {
       db.prepare('UPDATE outfit SET size = ? WHERE id = ?').run(patch.size, id);
+    }
+    if (patch.note !== undefined) {
+      db.prepare('UPDATE outfit SET note = ? WHERE id = ?').run(patch.note, id);
+    }
+    if (patch.favorite !== undefined) {
+      db.prepare('UPDATE outfit SET favorite = ? WHERE id = ?').run(patch.favorite, id);
     }
     if (patch.items !== undefined) replaceItems(id, patch.items);
   });

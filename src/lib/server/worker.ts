@@ -180,15 +180,17 @@ export async function generateOutfitCutout(
   }
 }
 
-// Verwerkt één outfit-cutout-job. Twee-traps: na een geslaagde isnet-cutout volgt
-// automatisch een birefnet-job. clear vóór de follow-enqueue, zodat de laatste
-// schrijf op cutout_job de nieuwe job is (niet de clear).
+// Verwerkt één outfit-cutout-job. Twee-traps (isnet → birefnet) alleen voor 'own';
+// inspiratie stopt na isnet. clear vóór de follow-enqueue, zodat de laatste schrijf op
+// cutout_job de nieuwe job is (niet de clear).
 export async function drainOutfitCutout(): Promise<boolean> {
   const job = claimNextOutfitCutout();
   if (!job) return false;
   let usedModel: string | null = null;
+  let autoSharpen = false;
   try {
     const outfit = getOutfit(job.id);
+    autoSharpen = outfit?.kind === 'own';
     const file = outfit?.photo_orig ? await readPhoto('outfit_orig', outfit.photo_orig) : null;
     if (file) usedModel = await generateOutfitCutout(job.id, file.data, job.model || undefined);
     else setOutfitCutoutResult(job.id, { cutout_status: 'failed' });
@@ -196,7 +198,9 @@ export async function drainOutfitCutout(): Promise<boolean> {
     clearOutfitCutoutJob(job.id); // ook bij een mid-drain fout: geen vastgelopen 'working'
   }
   // enqueue ná de clear, zodat de follow-job de laatste schrijf op cutout_job is
-  if (usedModel && usedModel !== SHARP_MODEL) enqueueOutfitCutout(job.id, SHARP_MODEL); // twee-traps
+  if (autoSharpen && usedModel && usedModel !== SHARP_MODEL) {
+    enqueueOutfitCutout(job.id, SHARP_MODEL);
+  }
   return true;
 }
 

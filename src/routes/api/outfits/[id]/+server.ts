@@ -5,7 +5,9 @@ import {
   getOutfit,
   getOutfitWithItems,
   isForeignKeyError,
-  updateOutfit
+  updateOutfit,
+  WrongOutfitKindError,
+  type OutfitPatch
 } from '$lib/server/outfits';
 import { serializeItem, serializeOutfit } from '$lib/server/serialize';
 import { deleteOutfitPhotos, deleteOutfitThumb } from '$lib/server/photos';
@@ -37,20 +39,29 @@ export const GET: RequestHandler = ({ params }) => {
 
 export const PATCH: RequestHandler = async ({ params, request }) => {
   const id = parseId(params.id);
-  let body: { name?: unknown; items?: unknown; size?: unknown };
+  let body: { name?: unknown; items?: unknown; size?: unknown; note?: unknown; favorite?: unknown };
   try {
     body = await request.json();
   } catch {
     error(400, 'Ongeldige JSON');
   }
   if (!body || typeof body !== 'object') error(400, 'Ongeldige body');
-  const patch: { name?: string; items?: ReturnType<typeof parseLayout>; size?: string | null } = {};
+  const patch: OutfitPatch = {};
   if (typeof body.name === 'string') {
     const n = body.name.trim();
     if (!n) error(400, 'Naam mag niet leeg zijn');
     patch.name = n;
   }
   if ('size' in body) patch.size = parseOutfitSize(body.size);
+  if ('note' in body) {
+    if (body.note !== null && typeof body.note !== 'string') error(400, 'Ongeldige notitie');
+    const n = typeof body.note === 'string' ? body.note.trim() : '';
+    patch.note = n || null;
+  }
+  if ('favorite' in body) {
+    if (typeof body.favorite !== 'boolean') error(400, 'favorite moet een boolean zijn');
+    patch.favorite = body.favorite ? 1 : 0;
+  }
   if ('items' in body) {
     // hybride-guard: een foto-outfit mag geen sleep-layout krijgen
     if (getOutfit(id)?.photo_orig) error(400, 'Foto-outfit heeft geen layout-items');
@@ -62,6 +73,7 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
     if (!updated) error(404, 'Niet gevonden');
     return json(serializeOutfit(updated));
   } catch (e) {
+    if (e instanceof WrongOutfitKindError) error(400, e.message);
     if (isForeignKeyError(e)) error(400, 'Layout verwijst naar een niet-bestaand item');
     throw e;
   }

@@ -44,9 +44,15 @@ export interface Filterset {
   pinned: number; // 0/1
 }
 
+// Soort outfit: zelf samengesteld/eigen foto, of een inspiratie-printscreen van internet.
+export type OutfitKind = 'own' | 'inspiration';
+
 export interface Outfit {
   id: number;
-  name: string;
+  kind: OutfitKind;
+  name: string; // '' voor inspiratie (kolom is NOT NULL; UI toont de notitie)
+  note: string | null; // alleen voor inspiratie
+  favorite: number; // 0/1; alleen voor inspiratie
   size: string | null;
   thumb_path: string | null;
   photo_orig: string | null; // foto-outfit bronfoto (<id>.<ext> in outfit_orig); NULL = item-outfit

@@ -21,6 +21,7 @@ const {
   readPhoto,
   deletePhotos,
   extForMime,
+  isSupportedImageMime,
   normalizeCutout,
   normalizeOutfitCutout,
   saveOutfitOrig,
@@ -35,6 +36,28 @@ async function jpegBuffer(w = 200, h = 200): Promise<Buffer> {
     .jpeg()
     .toBuffer();
 }
+
+describe('mime-herkenning', () => {
+  it('herkent de ondersteunde mimes, met of zonder parameters', () => {
+    expect(isSupportedImageMime('image/jpeg')).toBe(true);
+    expect(isSupportedImageMime('image/png')).toBe(true);
+    expect(isSupportedImageMime('image/webp')).toBe(true);
+    expect(isSupportedImageMime('IMAGE/JPEG')).toBe(true);
+    expect(isSupportedImageMime('image/jpeg;charset=utf-8')).toBe(true);
+  });
+
+  it('wijst niet-ondersteunde mimes en prototype-sleutels af', () => {
+    for (const mime of ['image/heic', 'application/pdf', '', '__proto__', 'constructor']) {
+      expect(isSupportedImageMime(mime)).toBe(false);
+    }
+  });
+
+  it('extForMime valt op de bestandsnaam terug bij een prototype-sleutel', () => {
+    expect(extForMime('constructor', 'foto.jpg')).toBe('jpg');
+    expect(extForMime('__proto__', 'foto.png')).toBe('png');
+    expect(extForMime('image/jpeg;charset=utf-8')).toBe('jpg');
+  });
+});
 
 describe('savePhoto', () => {
   it('writes original and a compressed display webp', async () => {
