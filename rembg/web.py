@@ -14,6 +14,7 @@ ALLOWED_MODELS = {"isnet-general-use", "birefnet-general"}
 _sessions = {}
 _last_used = time.monotonic()
 _inflight = 0  # actieve model-requests; de reaper sluit nooit af terwijl er werk loopt
+_model_lock = asyncio.Lock()  # één inferentie tegelijk: twee birefnet-runs passen niet in het geheugen
 
 
 def _touch():
@@ -60,11 +61,18 @@ async def cutout(request: Request, model: str | None = Query(default=None)):
     m = model or DEFAULT_MODEL
     if m not in ALLOWED_MODELS:
         return Response(status_code=400, content=b"unknown model")
-    from rembg import remove
-
     _inflight += 1
     try:
         data = await request.body()
-        return Response(content=remove(data, session=get_session(m)), media_type="image/png")
+        async with _model_lock:
+            png = await asyncio.to_thread(_remove, data, m)
+        return Response(content=png, media_type="image/png")
     finally:
         _inflight -= 1
+
+
+# buiten de event loop, zodat /health blijft antwoorden tijdens een cutout
+def _remove(data: bytes, model: str) -> bytes:
+    from rembg import remove
+
+    return remove(data, session=get_session(model))
